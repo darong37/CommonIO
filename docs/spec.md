@@ -19,6 +19,8 @@ use CommonIO qw(write_file append_file read_file write_do read_do
 | `eol` | 改行コードの扱い |
 | `text` | Perl の文字列（内部文字列） |
 | `lines` | 行配列（`text` を改行で分割したもの） |
+| `var` | `write_do` / `read_do` で扱う Perl 変数 |
+| `dump` | `dumpU8` が返す Data::Dumper 形式の文字列 |
 
 ## path 指定
 
