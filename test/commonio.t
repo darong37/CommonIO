@@ -177,6 +177,48 @@ subtest 'read_file with hash path spec' => sub {
     like $text, qr/ハッシュpath/, 'hash path spec works';
 };
 
+subtest 'write_do / read_do round-trip hash' => sub {
+    my $f = "$TMP/data.do";
+    my $orig = { key => 'val', num => 42 };
+    write_do($f, $orig);
+    my $got = read_do($f);
+    is ref($got), 'HASH', 'got hashref';
+    is $got->{key}, 'val', 'key matches';
+    is $got->{num}, 42, 'num matches';
+};
+
+subtest 'write_do / read_do round-trip array' => sub {
+    my $f = "$TMP/arr.do";
+    my $orig = ['a', 'b', 'c'];
+    write_do($f, $orig);
+    my $got = read_do($f);
+    is ref($got), 'ARRAY', 'got arrayref';
+    is $got->[0], 'a', 'first element ok';
+    is $got->[2], 'c', 'third element ok';
+};
+
+subtest 'write_do / read_do preserves Unicode' => sub {
+    my $f = "$TMP/unicode.do";
+    write_do($f, { msg => '日本語テスト' });
+    my $got = read_do($f);
+    is $got->{msg}, '日本語テスト', 'Unicode preserved';
+};
+
+subtest 'write_do UTF-8 fixed regardless of path encoding spec' => sub {
+    my $f = "$TMP/do_enc.do";
+    write_do({ path => $f, encoding => 'CP932' }, { x => 1 });
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    ok $bytes =~ /use utf8/, 'UTF-8 header present';
+};
+
+subtest 'read_do throws on missing file' => sub {
+    eval { read_do("$TMP/no_such.do") };
+    like $@, qr/file not found or empty|Failed to read/, 'exception on missing file';
+};
+
 cleanup();
 
 done_testing();

@@ -172,3 +172,59 @@ my $text = read_file({ path => '/tmp/sjis.txt', encoding => 'CP932' });
 - `encoding` が `UTF-8` / `CP932` 以外の場合は例外: `Unsupported file encoding`
 
 ---
+
+### write_do
+
+**シグネチャ:**
+```
+write_do($path, $var)
+```
+
+**説明:** Perl 変数を `do` で読める形式（`.do` ファイル）に保存します。エンコーディングは UTF-8 固定です。
+
+**引数:**
+
+| 引数 | 型 | 説明 |
+|---|---|---|
+| `$path` | 文字列またはハッシュ | 保存先ファイルパス（encoding / eol は無視） |
+| `$var` | 任意 | 保存する Perl 変数（ハッシュ ref、配列 ref など） |
+
+**戻り値:** なし
+
+**使用例:**
+```perl
+write_do('/tmp/config.do', { key => 'value', name => '日本語' });
+```
+
+**エラー:**
+- 書き込み先が存在しない場合は例外
+
+---
+
+### read_do
+
+**シグネチャ:**
+```
+$var = read_do($path)
+```
+
+**説明:** `write_do` で保存した `.do` ファイルを評価して Perl 変数として返します。
+
+**引数:**
+
+| 引数 | 型 | 説明 |
+|---|---|---|
+| `$path` | 文字列またはハッシュ | 読み込み元ファイルパス |
+
+**戻り値:** 保存された Perl 変数
+
+**使用例:**
+```perl
+my $config = read_do('/tmp/config.do');
+```
+
+**エラー:**
+- ファイルが存在しない、または評価が未定義の場合は例外: `file not found or empty`
+- 構文エラーがある場合は例外: `Failed to read`
+
+---
