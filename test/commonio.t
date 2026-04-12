@@ -123,6 +123,60 @@ subtest 'append_file appends to existing file' => sub {
     like $text, qr/first\nsecond/, 'both lines present';
 };
 
+subtest 'read_file returns scalar text' => sub {
+    my $f = "$TMP/read_scalar.txt";
+    write_file($f, "hello world");
+    my $text = read_file($f);
+    is $text, "hello world", 'scalar text matches';
+};
+
+subtest 'read_file returns line array' => sub {
+    my $f = "$TMP/read_lines.txt";
+    write_file($f, "line1\nline2\nline3");
+    my @lines = read_file($f);
+    is scalar @lines, 3, 'three lines';
+    is $lines[0], 'line1', 'first line ok';
+    is $lines[2], 'line3', 'third line ok';
+};
+
+subtest 'read_file normalizes CRLF to LF with eol=>lf' => sub {
+    my $f = "$TMP/read_crlf.txt";
+    open my $fh, '>:raw', $f or die;
+    print {$fh} "line1\r\nline2\r\n";
+    close $fh;
+    my $text = read_file({ path => $f, eol => 'lf' });
+    unlike $text, qr/\r/, 'no CR after normalization';
+    like $text, qr/line1\nline2/, 'LF present';
+};
+
+subtest 'read_file preserves CRLF with eol=>preserve' => sub {
+    my $f = "$TMP/read_preserve.txt";
+    open my $fh, '>:raw', $f or die;
+    print {$fh} "line1\r\nline2\r\n";
+    close $fh;
+    my $text = read_file({ path => $f, eol => 'preserve' });
+    like $text, qr/\r\n/, 'CRLF preserved';
+};
+
+subtest 'read_file throws on missing file' => sub {
+    eval { read_file("$TMP/no_such_file.txt") };
+    like $@, qr/Cannot read/, 'exception on missing file';
+};
+
+subtest 'read_file reads CP932 file' => sub {
+    my $f = "$TMP/read_cp932.txt";
+    write_file({ path => $f, encoding => 'CP932' }, "テスト");
+    my $text = read_file({ path => $f, encoding => 'CP932' });
+    is $text, 'テスト', 'CP932 round-trip ok';
+};
+
+subtest 'read_file with hash path spec' => sub {
+    my $f = "$TMP/read_hash.txt";
+    write_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュpath");
+    my $text = read_file({ path => $f, encoding => 'UTF-8', eol => 'preserve' });
+    like $text, qr/ハッシュpath/, 'hash path spec works';
+};
+
 cleanup();
 
 done_testing();

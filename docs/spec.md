@@ -124,3 +124,52 @@ append_file('/tmp/log.txt', ['line4', 'line5']);
 **エラー:** `write_file` と同じ
 
 ---
+
+### read_file
+
+**シグネチャ:**
+```
+$text  = read_file($path)           # スカラコンテキスト
+@lines = read_file($path)           # リストコンテキスト
+```
+
+**説明:** ファイルを読み込んで Perl の内部文字列として返します。
+
+**引数:**
+
+| 引数 | 型 | 説明 |
+|---|---|---|
+| `$path` | 文字列またはハッシュ | 読み込み元。[path 指定](#path-指定)を参照 |
+
+**戻り値:**
+- スカラコンテキスト: ファイル全体の文字列
+- リストコンテキスト: 改行で分割した行配列
+
+**eol の挙動（読み込み時）:**
+
+| eol | 挙動 |
+|---|---|
+| `preserve`（既定） | 改行をそのまま返す |
+| `lf` | `\r\n` / `\r` を `\n` に正規化してから返す |
+
+**使用例:**
+```perl
+# テキスト全体を読む
+my $text = read_file('/tmp/data.txt');
+
+# 行配列として読む
+my @lines = read_file('/tmp/data.txt');
+
+# CRLF を LF に正規化して読む
+my $text = read_file({ path => '/tmp/win.txt', eol => 'lf' });
+
+# CP932 ファイルを読む
+my $text = read_file({ path => '/tmp/sjis.txt', encoding => 'CP932' });
+```
+
+**エラー:**
+- ファイルが存在しない場合は例外: `Cannot read`
+- ファイルが空の場合は例外: `file not found or empty`
+- `encoding` が `UTF-8` / `CP932` 以外の場合は例外: `Unsupported file encoding`
+
+---
