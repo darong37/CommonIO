@@ -266,6 +266,26 @@ subtest 'log file is always UTF-8 regardless of setLogFile encoding spec' => sub
     like $text, qr/固定UTF8/, 'log file is UTF-8';
 };
 
+subtest 'run_in_fork executes code in child' => sub {
+    my $f = "$TMP/fork_result.txt";
+    unlink $f if -f $f;
+    run_in_fork(sub {
+        write_file($f, '子プロセス実行');
+    });
+    ok -f $f, 'file created by child';
+    my $text = read_file($f);
+    like $text, qr/子プロセス実行/, 'child wrote correct content';
+};
+
+subtest 'run_in_fork throws when child throws' => sub {
+    eval {
+        run_in_fork(sub {
+            die "子プロセスエラー\n";
+        });
+    };
+    like $@, qr/confirm failed/, 'parent throws on child failure';
+};
+
 cleanup();
 
 done_testing();
