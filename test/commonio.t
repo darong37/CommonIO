@@ -219,6 +219,13 @@ subtest 'read_do throws on missing file' => sub {
     like $@, qr/file not found or empty|Failed to read/, 'exception on missing file';
 };
 
+subtest 'read_do throws on syntax error file' => sub {
+    my $f = "$TMP/syntax_err.do";
+    write_file($f, 'this is not valid perl $$$');
+    eval { read_do($f) };
+    like $@, qr/Failed to read/, 'syntax error triggers exception';
+};
+
 subtest 'dumpU8 preserves Unicode characters' => sub {
     my $dump = dumpU8({ word => '漢字' });
     like $dump, qr/漢字/, 'Unicode not escaped';

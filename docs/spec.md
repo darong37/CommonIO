@@ -321,6 +321,9 @@ log('error', '致命的エラー');
 **エラー:**
 - 不正な `$level` を渡した場合は例外: `Unsupported log level`
 
+**注意:**
+- STDERR への出力はロケールのエンコーディングを使用します。環境に合わせて事前に `setup_console` を呼ぶことを推奨します。
+
 ---
 
 ### setLogFile
