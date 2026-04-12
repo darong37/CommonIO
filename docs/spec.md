@@ -260,3 +260,34 @@ my $one = dumpU8(['a', 'b'], indent => 0);
 **エラー:** なし
 
 ---
+
+### setup_console
+
+**シグネチャ:**
+```
+$console_encoding = setup_console()
+$console_encoding = setup_console($encoding)
+```
+
+**説明:** `STDOUT` と `STDERR` のエンコーディングを設定します。以降の `print` / `warn` でバイト列への変換が自動で行われます。
+
+**引数:**
+
+| 引数 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `$encoding` | 文字列 | ロケールから自動検出 | `UTF-8` または `CP932` 系 |
+
+受け付ける値の例: `UTF-8`、`utf-8`、`CP932`、`cp932`、`Shift_JIS`、`SJIS`
+
+**戻り値:** 設定したエンコーディング名（`'UTF-8'` または `'CP932'`）
+
+**使用例:**
+```perl
+my $enc = setup_console('UTF-8');
+print "日本語が正しく出力されます\n";
+```
+
+**エラー:**
+- `UTF-8` / `CP932` 系以外を渡した場合は例外: `Unsupported console encoding`
+
+---

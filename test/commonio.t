@@ -230,6 +230,29 @@ subtest 'dumpU8 with indent=>0 produces one line' => sub {
     unlike $dump, qr/\n/, 'no newline with indent 0';
 };
 
+subtest 'setup_console returns UTF-8' => sub {
+    my $enc = setup_console('UTF-8');
+    is $enc, 'UTF-8', 'returns UTF-8';
+};
+
+subtest 'setup_console returns CP932' => sub {
+    my $enc = setup_console('CP932');
+    is $enc, 'CP932', 'returns CP932';
+    setup_console('UTF-8');    # テスト後に UTF-8 へ戻す
+};
+
+subtest 'setup_console with no arg does not throw' => sub {
+    my $enc;
+    eval { $enc = setup_console() };
+    ok !$@, 'no exception without arg';
+    ok defined $enc, 'returns encoding name';
+};
+
+subtest 'setup_console rejects unsupported encoding' => sub {
+    eval { setup_console('EUC-JP') };
+    like $@, qr/Unsupported console encoding/i, 'EUC-JP rejected';
+};
+
 cleanup();
 
 done_testing();
