@@ -53,7 +53,7 @@ write_file({ path => '/path/to/file.txt', encoding => 'CP932', eol => 'crlf' }, 
 | 値 | 書き込み時 | 読み込み時 |
 |---|---|---|
 | `lf` | `\r\n` / `\r` を `\n` へ変換して書く | `\r\n` / `\r` を `\n` へ正規化 |
-| `crlf` | `\n` を `\r\n` へ変換して書く | — |
+| `crlf` | `\n` を `\r\n` へ変換して書く | 読み込み時は指定不可 |
 | `preserve` | 改行をそのまま書く | 改行をそのまま返す |
 
 ---
@@ -114,7 +114,11 @@ append_file($path, $lines)
 
 **使用例:**
 ```perl
+# 文字列を追記
 append_file('/tmp/log.txt', "追加行\n");
+
+# 配列 ref を追記（write_file と同じ変換規則）
+append_file('/tmp/log.txt', ['line4', 'line5']);
 ```
 
 **エラー:** `write_file` と同じ

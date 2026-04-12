@@ -110,7 +110,8 @@ subtest 'write_file writes CP932' => sub {
     local $/;
     my $bytes = <$fh>;
     close $fh;
-    # CP932 の「テスト」は UTF-8 より短いバイト列になる
+    # CP932 のカタカナは 2 バイト/文字、UTF-8 は 3 バイト/文字なので CP932 の方が短い
+    # これにより CP932 エンコーディングが実際に適用されたことを確認できる
     ok length($bytes) < length(Encode::encode('UTF-8', 'テスト')), 'CP932 bytes differ from UTF-8';
 };
 
