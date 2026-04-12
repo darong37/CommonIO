@@ -5,7 +5,10 @@ use utf8;
 use Test::More;
 use File::Path qw(remove_tree);
 
-use CommonIO qw(dying log read_file setLogFile);
+use CommonIO qw(
+    append_file dying dumpU8 log read_do read_file
+    run_in_fork setLogFile setup_console write_do write_file
+);
 
 my $TMP = '/tmp/spool/commonio-test';
 
@@ -43,6 +46,19 @@ subtest 'setLogFile undef disables file logging' => sub {
     my $line = log('info', 'fileなし');
     like $line, qr/\[INFO\] fileなし/, 'log still returns formatted line';
     ok !-f $log, 'no log file created while disabled';
+};
+
+subtest 'write_file rejects unsupported encoding' => sub {
+    my $f = "$TMP/enc.txt";
+    eval { write_file({ path => $f, encoding => 'EUC-JP' }, 'test') };
+    like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected';
+};
+
+subtest 'read_file rejects unsupported encoding' => sub {
+    my $f = "$TMP/enc_r.txt";
+    write_file($f, 'test');
+    eval { read_file({ path => $f, encoding => 'EUC-JP' }) };
+    like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on read';
 };
 
 cleanup();

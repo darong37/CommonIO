@@ -63,14 +63,15 @@ sub _normalize_log_level {
 }
 
 sub setLogFile {
-    my ($target) = @_;
-    if (!defined $target) {
+    my ($path) = @_;
+    if (!defined $path) {
         $LOG_TARGET = undef;
         return;
     }
 
-    my $spec = _parse_target($target);
-    $spec->{eol} = 'lf' unless defined $spec->{eol} && length $spec->{eol};
+    my $spec = _parse_path($path);
+    $spec->{eol}      = 'lf'    unless defined $spec->{eol}      && length $spec->{eol};
+    $spec->{encoding} = 'UTF-8';
     $LOG_TARGET = $spec;
     return $LOG_TARGET->{path};
 }
@@ -126,6 +127,16 @@ sub _encoding_name {
     return $encoder->name;
 }
 
+sub _file_encoding_name {
+    my ($encoding) = @_;
+    $encoding = 'UTF-8' unless defined $encoding && length $encoding;
+    my $key = uc $encoding;
+    $key =~ s/[^A-Z0-9]//g;
+    return 'UTF-8' if $key eq 'UTF8';
+    return 'CP932' if $key eq 'CP932';
+    CommonIO::dying("Unsupported file encoding: $encoding (use UTF-8 or CP932)");
+}
+
 sub _console_encoding_name {
     my ($encoding) = @_;
 
@@ -146,25 +157,25 @@ sub _console_encoding_name {
     CommonIO::dying("Unsupported console encoding: $encoding");
 }
 
-sub _parse_target {
-    my ($target) = @_;
+sub _parse_path {
+    my ($path) = @_;
 
     return {
         eol      => undef,
         encoding => undef,
-        path     => $target,
-    } unless ref $target;
+        path     => $path,
+    } unless ref $path;
 
-    CommonIO::dying("target must be path string or hashref")
-        unless ref($target) eq 'HASH';
+    CommonIO::dying("path must be path string or hashref")
+        unless ref($path) eq 'HASH';
 
-    CommonIO::dying("target->{path} is required")
-        unless defined $target->{path} && length $target->{path};
+    CommonIO::dying("path->{path} is required")
+        unless defined $path->{path} && length $path->{path};
 
     return {
-        eol      => $target->{eol},
-        encoding => $target->{encoding},
-        path     => $target->{path},
+        eol      => $path->{eol},
+        encoding => $path->{encoding},
+        path     => $path->{path},
     };
 }
 
@@ -204,16 +215,16 @@ sub _line_ending {
     CommonIO::dying("Unknown write eol mode: $eol");
 }
 
-sub _render_write_data {
-    my ($data, $eol) = @_;
+sub _render_write_text {
+    my ($text, $eol) = @_;
 
-    return _normalize_write_eol($data, $eol) unless ref $data;
+    return _normalize_write_eol($text, $eol) unless ref $text;
 
-    CommonIO::dying("Unsupported data type: " . ref($data))
-        unless ref($data) eq 'ARRAY';
+    CommonIO::dying("Unsupported text type: " . ref($text))
+        unless ref($text) eq 'ARRAY';
 
     my $nl = _line_ending($eol);
-    return defined $nl ? join($nl, @$data) : join('', @$data);
+    return defined $nl ? join($nl, @$text) : join('', @$text);
 }
 
 sub _split_lines {
@@ -232,29 +243,29 @@ sub _write_bytes {
 }
 
 sub write_file {
-    my ($target, $data) = @_;
-    my $spec = _parse_target($target);
-    my $text = _render_write_data($data, $spec->{eol});
-    my $encoding = _encoding_name($spec->{encoding});
-    my $bytes = encode($encoding, $text, FB_CROAK);
+    my ($path, $text) = @_;
+    my $spec = _parse_path($path);
+    my $rendered_text = _render_write_text($text, $spec->{eol});
+    my $encoding = _file_encoding_name($spec->{encoding});
+    my $bytes = encode($encoding, $rendered_text, FB_CROAK);
     _write_bytes($spec->{path}, $bytes, '>');
     return;
 }
 
 sub append_file {
-    my ($target, $data) = @_;
-    my $spec = _parse_target($target);
-    my $text = _render_write_data($data, $spec->{eol});
-    my $encoding = _encoding_name($spec->{encoding});
-    my $bytes = encode($encoding, $text, FB_CROAK);
+    my ($path, $text) = @_;
+    my $spec = _parse_path($path);
+    my $rendered_text = _render_write_text($text, $spec->{eol});
+    my $encoding = _file_encoding_name($spec->{encoding});
+    my $bytes = encode($encoding, $rendered_text, FB_CROAK);
     _write_bytes($spec->{path}, $bytes, '>>');
     return;
 }
 
 sub read_file {
-    my ($target) = @_;
-    my $spec = _parse_target($target);
-    my $encoding = _encoding_name($spec->{encoding});
+    my ($path) = @_;
+    my $spec = _parse_path($path);
+    my $encoding = _file_encoding_name($spec->{encoding});
     open my $fh, '<:raw', $spec->{path} or CommonIO::dying("Cannot read $spec->{path}: $!");
     local $/;
     my $bytes = <$fh>;
@@ -266,8 +277,8 @@ sub read_file {
 }
 
 sub dumpU8 {
-    my ($data, %opts) = @_;
-    my $dump = Data::Dumper->new([$data])
+    my ($var, %opts) = @_;
+    my $dump = Data::Dumper->new([$var])
         ->Terse(1)
         ->Indent($opts{indent} // 1)
         ->Dump;
@@ -277,30 +288,31 @@ sub dumpU8 {
 
 sub setup_console {
     my ($encoding) = @_;
-    my $name = _console_encoding_name($encoding);
-    binmode STDOUT, ":encoding($name)"
-        or CommonIO::dying("Cannot set STDOUT encoding to $name: $!");
-    binmode STDERR, ":encoding($name)"
-        or CommonIO::dying("Cannot set STDERR encoding to $name: $!");
-    return $name;
+    my $console_encoding = _console_encoding_name($encoding);
+    binmode STDOUT, ":encoding($console_encoding)"
+        or CommonIO::dying("Cannot set STDOUT encoding to $console_encoding: $!");
+    binmode STDERR, ":encoding($console_encoding)"
+        or CommonIO::dying("Cannot set STDERR encoding to $console_encoding: $!");
+    return $console_encoding;
 }
 
 sub write_do {
-    my ($target, $data) = @_;
-    my $dump = dumpU8($data, indent => 1);
-    my $source = "use utf8;\n\n" . $dump;
-    write_file($target, $source);
+    my ($path, $var) = @_;
+    my $spec = _parse_path($path);
+    my $dump = dumpU8($var, indent => 1);
+    my $text = "use utf8;\n\n" . $dump;
+    write_file($spec->{path}, $text);
     return;
 }
 
 sub read_do {
-    my ($target) = @_;
-    my $spec = _parse_target($target);
-    my $path = $spec->{path};
-    my $data = do $path;
-    CommonIO::dying("Failed to read $path: $@") if $@;
-    CommonIO::dying("Failed to read $path: file not found or empty") unless defined $data;
-    return $data;
+    my ($path) = @_;
+    my $spec = _parse_path($path);
+    my $file_path = $spec->{path};
+    my $var = do $file_path;
+    CommonIO::dying("Failed to read $file_path: $@") if $@;
+    CommonIO::dying("Failed to read $file_path: file not found or empty") unless defined $var;
+    return $var;
 }
 
 1;
