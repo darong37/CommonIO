@@ -4,6 +4,7 @@ use utf8;
 
 use Test::More;
 use File::Path qw(remove_tree);
+use Encode ();
 
 use CommonIO qw(
     append_file dying dumpU8 log read_do read_file
@@ -66,6 +67,59 @@ subtest 'append_file rejects unsupported encoding' => sub {
     write_file($f, 'base');
     eval { append_file({ path => $f, encoding => 'EUC-JP' }, 'test') };
     like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on append';
+};
+
+subtest 'write_file writes UTF-8 text' => sub {
+    my $f = "$TMP/write_utf8.txt";
+    write_file($f, "日本語テキスト\n");
+    my $text = read_file($f);
+    like $text, qr/日本語テキスト/, 'UTF-8 round-trip ok';
+};
+
+subtest 'write_file writes CRLF' => sub {
+    my $f = "$TMP/write_crlf.txt";
+    write_file({ path => $f, eol => 'crlf' }, "line1\nline2");
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    like $bytes, qr/\r\n/, 'CRLF bytes present';
+};
+
+subtest 'write_file preserves eol' => sub {
+    my $f = "$TMP/write_preserve.txt";
+    write_file({ path => $f, eol => 'preserve' }, "line1\r\nline2\nline3");
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    like $bytes, qr/line1\r\nline2\nline3/, 'mixed eol preserved';
+};
+
+subtest 'write_file writes array lines' => sub {
+    my $f = "$TMP/write_lines.txt";
+    write_file($f, ['alpha', 'beta', 'gamma']);
+    my $text = read_file($f);
+    like $text, qr/alpha\nbeta\ngamma/, 'lines joined with LF';
+};
+
+subtest 'write_file writes CP932' => sub {
+    my $f = "$TMP/write_cp932.txt";
+    write_file({ path => $f, encoding => 'CP932' }, "テスト");
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    # CP932 の「テスト」は UTF-8 より短いバイト列になる
+    ok length($bytes) < length(Encode::encode('UTF-8', 'テスト')), 'CP932 bytes differ from UTF-8';
+};
+
+subtest 'append_file appends to existing file' => sub {
+    my $f = "$TMP/append.txt";
+    write_file($f, "first\n");
+    append_file($f, "second\n");
+    my $text = read_file($f);
+    like $text, qr/first\nsecond/, 'both lines present';
 };
 
 cleanup();
