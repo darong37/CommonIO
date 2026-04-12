@@ -204,14 +204,16 @@ subtest 'write_do / read_do preserves Unicode' => sub {
     is $got->{msg}, '日本語テスト', 'Unicode preserved';
 };
 
-subtest 'write_do UTF-8 fixed regardless of path encoding spec' => sub {
+subtest 'write_do rejects encoding option' => sub {
     my $f = "$TMP/do_enc.do";
-    write_do({ path => $f, encoding => 'CP932' }, { x => 1 });
-    open my $fh, '<:raw', $f or die;
-    local $/;
-    my $bytes = <$fh>;
-    close $fh;
-    ok $bytes =~ /use utf8/, 'UTF-8 header present';
+    eval { write_do({ path => $f, encoding => 'CP932' }, { x => 1 }) };
+    like $@, qr/Unsupported path option: encoding/, 'write_do rejects encoding';
+};
+
+subtest 'write_do rejects eol option' => sub {
+    my $f = "$TMP/do_eol.do";
+    eval { write_do({ path => $f, eol => 'crlf' }, { x => 1 }) };
+    like $@, qr/Unsupported path option: eol/, 'write_do rejects eol';
 };
 
 subtest 'read_do throws on missing file' => sub {
@@ -224,6 +226,20 @@ subtest 'read_do throws on syntax error file' => sub {
     write_file($f, 'this is not valid perl $$$');
     eval { read_do($f) };
     like $@, qr/Failed to read/, 'syntax error triggers exception';
+};
+
+subtest 'read_do rejects encoding option' => sub {
+    my $f = "$TMP/read_do_enc.do";
+    write_do($f, { ok => 1 });
+    eval { read_do({ path => $f, encoding => 'CP932' }) };
+    like $@, qr/Unsupported path option: encoding/, 'read_do rejects encoding';
+};
+
+subtest 'read_do rejects eol option' => sub {
+    my $f = "$TMP/read_do_eol.do";
+    write_do($f, { ok => 1 });
+    eval { read_do({ path => $f, eol => 'lf' }) };
+    like $@, qr/Unsupported path option: eol/, 'read_do rejects eol';
 };
 
 subtest 'dumpU8 preserves Unicode characters' => sub {
@@ -260,9 +276,15 @@ subtest 'setup_console rejects unsupported encoding' => sub {
     like $@, qr/Unsupported console encoding/i, 'EUC-JP rejected';
 };
 
-subtest 'log file is always UTF-8 regardless of setLogFile encoding spec' => sub {
+subtest 'setLogFile rejects encoding option' => sub {
     my $f = "$TMP/log_utf8_fixed.log";
-    setLogFile({ path => $f, encoding => 'CP932' });  # encoding 無視される
+    eval { setLogFile({ path => $f, encoding => 'CP932' }) };
+    like $@, qr/Unsupported path option: encoding/, 'setLogFile rejects encoding';
+};
+
+subtest 'log file is UTF-8 with valid setLogFile path' => sub {
+    my $f = "$TMP/log_utf8_fixed.log";
+    setLogFile($f);
     log('info', '固定UTF8');
     setLogFile(undef);
     open my $fh, '<:raw', $f or die;

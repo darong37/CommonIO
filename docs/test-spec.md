@@ -25,7 +25,8 @@
 | log writes UTF-8 text to log file | log 関数の基本動作（書式・ファイル書き込み） | setLogFile でログファイルを設定 | 戻り値が `[DEBUG] 漢字ログ` 形式になる／ログファイルに UTF-8 テキストが書き込まれる |
 | dying logs error and throws | dying 関数がエラーを記録して例外を投げる | setLogFile でエラーログファイルを設定 | `die` で指定メッセージが伝播する／ログファイルに `[ERROR]` 行が書き込まれる |
 | setLogFile undef disables file logging | setLogFile(undef) でファイル書き込みを無効化 | ログファイルなし状態で log を呼ぶ | 戻り値は正常に返る／ファイルが作成されない |
-| log file is always UTF-8 regardless of setLogFile encoding spec | setLogFile にエンコーディングを指定しても UTF-8 固定 | setLogFile({ path => ..., encoding => 'CP932' }) | ファイルのバイト列を UTF-8 でデコードしてメッセージが読める |
+| setLogFile rejects encoding option | encoding キーを渡すと即座に例外 | setLogFile({ path => ..., encoding => 'CP932' }) | 「Unsupported path option: encoding」例外が発生する |
+| log file is UTF-8 with valid setLogFile path | ログファイルが UTF-8 で書き込まれること | setLogFile でパスのみ設定 | ファイルのバイト列を UTF-8 でデコードしてメッセージが読める |
 
 ### ファイルIO系（write_file / append_file / read_file）
 
@@ -55,9 +56,12 @@
 | write_do / read_do round-trip hash | ハッシュリファレンスの書き込みと読み返し | なし | 読み返しで HASH リファレンスが返り、各キーの値が一致する |
 | write_do / read_do round-trip array | 配列リファレンスの書き込みと読み返し | なし | 読み返しで ARRAY リファレンスが返り、各要素が一致する |
 | write_do / read_do preserves Unicode | Unicode 文字を含むデータの往復 | なし | 読み返しで日本語文字列が正しく取得できる |
-| write_do UTF-8 fixed regardless of path encoding spec | encoding 指定に関わらず .do ファイルは UTF-8 固定 | encoding => 'CP932' を指定して書き込む | バイナリ読み取りで `use utf8` ヘッダが含まれる |
+| write_do rejects encoding option | encoding キーを渡すと即座に例外 | write_do({ path => ..., encoding => 'CP932' }, ...) | 「Unsupported path option: encoding」例外が発生する |
+| write_do rejects eol option | eol キーを渡すと即座に例外 | write_do({ path => ..., eol => 'crlf' }, ...) | 「Unsupported path option: eol」例外が発生する |
 | read_do throws on missing file | 存在しないファイルを読もうとすると例外 | ファイルが存在しない | 「file not found or empty」または「Failed to read」例外が発生する |
 | read_do throws on syntax error file | 構文エラーのあるファイルを読もうとすると例外 | 不正な Perl 構文のファイルが存在する | 「Failed to read」例外が発生する |
+| read_do rejects encoding option | encoding キーを渡すと即座に例外 | read_do({ path => ..., encoding => 'CP932' }) | 「Unsupported path option: encoding」例外が発生する |
+| read_do rejects eol option | eol キーを渡すと即座に例外 | read_do({ path => ..., eol => 'lf' }) | 「Unsupported path option: eol」例外が発生する |
 
 ### ダンプ系（dumpU8）
 

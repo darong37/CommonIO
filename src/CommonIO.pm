@@ -69,7 +69,7 @@ sub setLogFile {
         return;
     }
 
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path eol));
     $spec->{eol}      = 'lf'    unless defined $spec->{eol}      && length $spec->{eol};
     $spec->{encoding} = 'UTF-8';
     $LOG_TARGET = $spec;
@@ -157,8 +157,21 @@ sub _console_encoding_name {
     CommonIO::dying("Unsupported console encoding: $encoding");
 }
 
+sub _assert_allowed_path_keys {
+    my ($path, @allowed_keys) = @_;
+    return unless ref($path) eq 'HASH';
+
+    my %allowed = map { $_ => 1 } @allowed_keys;
+    for my $key (keys %{$path}) {
+        CommonIO::dying("Unsupported path option: $key")
+            unless $allowed{$key};
+    }
+    return;
+}
+
 sub _parse_path {
-    my ($path) = @_;
+    my ($path, @allowed_keys) = @_;
+    @allowed_keys = qw(path encoding eol) unless @allowed_keys;
 
     return {
         eol      => undef,
@@ -168,6 +181,7 @@ sub _parse_path {
 
     CommonIO::dying("path must be path string or hashref")
         unless ref($path) eq 'HASH';
+    _assert_allowed_path_keys($path, @allowed_keys);
 
     CommonIO::dying("path->{path} is required")
         unless defined $path->{path} && length $path->{path};
@@ -244,7 +258,7 @@ sub _write_bytes {
 
 sub write_file {
     my ($path, $text) = @_;
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path encoding eol));
     my $rendered_text = _render_write_text($text, $spec->{eol});
     my $encoding = _file_encoding_name($spec->{encoding});
     my $bytes = encode($encoding, $rendered_text, FB_CROAK);
@@ -254,7 +268,7 @@ sub write_file {
 
 sub append_file {
     my ($path, $text) = @_;
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path encoding eol));
     my $rendered_text = _render_write_text($text, $spec->{eol});
     my $encoding = _file_encoding_name($spec->{encoding});
     my $bytes = encode($encoding, $rendered_text, FB_CROAK);
@@ -264,7 +278,7 @@ sub append_file {
 
 sub read_file {
     my ($path) = @_;
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path encoding eol));
     my $encoding = _file_encoding_name($spec->{encoding});
     open my $fh, '<:raw', $spec->{path} or CommonIO::dying("Cannot read $spec->{path}: $!");
     local $/;
@@ -298,7 +312,7 @@ sub setup_console {
 
 sub write_do {
     my ($path, $var) = @_;
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path));
     my $dump = dumpU8($var, indent => 1);
     my $text = "use utf8;\n\n" . $dump;
     write_file($spec->{path}, $text);
@@ -307,7 +321,7 @@ sub write_do {
 
 sub read_do {
     my ($path) = @_;
-    my $spec = _parse_path($path);
+    my $spec = _parse_path($path, qw(path));
     my $file_path = $spec->{path};
     my $var = do $file_path;
     CommonIO::dying("Failed to read $file_path: $@") if $@;

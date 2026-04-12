@@ -188,7 +188,7 @@ write_do($path, $var)
 
 | 引数 | 型 | 説明 |
 |---|---|---|
-| `$path` | 文字列またはハッシュ | 保存先ファイルパス（encoding / eol は無視） |
+| `$path` | 文字列またはハッシュ | 保存先ファイルパス（`path` キーのみ有効。`encoding` / `eol` を渡すと例外） |
 | `$var` | 任意 | 保存する Perl 変数（ハッシュ ref、配列 ref など） |
 
 **戻り値:** なし
@@ -200,6 +200,7 @@ write_do('/tmp/config.do', { key => 'value', name => '日本語' });
 
 **エラー:**
 - 書き込み先が存在しない場合は例外
+- `$path` にハッシュで `encoding` / `eol` キーを渡した場合は例外: `Unsupported path option`
 
 ---
 
@@ -216,7 +217,7 @@ $var = read_do($path)
 
 | 引数 | 型 | 説明 |
 |---|---|---|
-| `$path` | 文字列またはハッシュ | 読み込み元ファイルパス |
+| `$path` | 文字列またはハッシュ | 読み込み元ファイルパス（`path` キーのみ有効。`encoding` / `eol` を渡すと例外） |
 
 **戻り値:** 保存された Perl 変数
 
@@ -228,6 +229,7 @@ my $config = read_do('/tmp/config.do');
 **エラー:**
 - ファイルが存在しない、または評価が未定義の場合は例外: `file not found or empty`
 - 構文エラーがある場合は例外: `Failed to read`
+- `$path` にハッシュで `encoding` / `eol` キーを渡した場合は例外: `Unsupported path option`
 
 ---
 
@@ -342,12 +344,13 @@ $path = setLogFile($path)
 
 | 引数 | 型 | 説明 |
 |---|---|---|
-| `$path` | 文字列またはハッシュ | ログファイルパス（`encoding` キーは無視され UTF-8 固定） |
+| `$path` | 文字列またはハッシュ | ログファイルパス（`path` / `eol` キーのみ有効。`encoding` を渡すと例外） |
 | `undef` | — | ファイル保存を無効にする |
 
 **戻り値:** 設定したパス文字列。`undef` 指定時は戻り値なし
 
-**エラー:** なし
+**エラー:**
+- `$path` にハッシュで `encoding` キーを渡した場合は例外: `Unsupported path option`
 
 ---
 

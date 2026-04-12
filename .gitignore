@@ -33,3 +33,4 @@ AGENTS.md
 lib/
 .claude/worktrees/
 .claude/settings.json
+.claude/commands/
