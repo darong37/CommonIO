@@ -219,6 +219,17 @@ subtest 'read_do throws on missing file' => sub {
     like $@, qr/file not found or empty|Failed to read/, 'exception on missing file';
 };
 
+subtest 'dumpU8 preserves Unicode characters' => sub {
+    my $dump = dumpU8({ word => '漢字' });
+    like $dump, qr/漢字/, 'Unicode not escaped';
+    unlike $dump, qr/\\x\{/, 'no \\x{} escapes';
+};
+
+subtest 'dumpU8 with indent=>0 produces one line' => sub {
+    my $dump = dumpU8(['x', 'y'], indent => 0);
+    unlike $dump, qr/\n/, 'no newline with indent 0';
+};
+
 cleanup();
 
 done_testing();

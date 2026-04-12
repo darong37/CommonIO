@@ -228,3 +228,35 @@ my $config = read_do('/tmp/config.do');
 - 構文エラーがある場合は例外: `Failed to read`
 
 ---
+
+### dumpU8
+
+**シグネチャ:**
+```
+$dump = dumpU8($var)
+$dump = dumpU8($var, indent => $n)
+```
+
+**説明:** Perl 変数を `Data::Dumper` 形式の文字列に変換します。Unicode 文字が `\x{...}` エスケープされず、そのまま出力されます。
+
+**引数:**
+
+| 引数 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `$var` | 任意 | — | ダンプする変数 |
+| `indent` | 整数 | `1` | `Data::Dumper` の Indent 値（0: 一行、1: 整形） |
+
+**戻り値:** Unicode 文字をそのまま含んだダンプ文字列
+
+**使用例:**
+```perl
+my $dump = dumpU8({ name => '日本語' });
+# => "{\n  'name' => '日本語'\n}\n"
+
+my $one = dumpU8(['a', 'b'], indent => 0);
+# => "['a', 'b']"
+```
+
+**エラー:** なし
+
+---
