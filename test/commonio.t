@@ -61,6 +61,13 @@ subtest 'read_file rejects unsupported encoding' => sub {
     like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on read';
 };
 
+subtest 'append_file rejects unsupported encoding' => sub {
+    my $f = "$TMP/enc_a.txt";
+    write_file($f, 'base');
+    eval { append_file({ path => $f, encoding => 'EUC-JP' }, 'test') };
+    like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on append';
+};
+
 cleanup();
 
 done_testing();
