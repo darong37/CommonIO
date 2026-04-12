@@ -253,6 +253,19 @@ subtest 'setup_console rejects unsupported encoding' => sub {
     like $@, qr/Unsupported console encoding/i, 'EUC-JP rejected';
 };
 
+subtest 'log file is always UTF-8 regardless of setLogFile encoding spec' => sub {
+    my $f = "$TMP/log_utf8_fixed.log";
+    setLogFile({ path => $f, encoding => 'CP932' });  # encoding 無視される
+    log('info', '固定UTF8');
+    setLogFile(undef);
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    my $text = Encode::decode('UTF-8', $bytes);
+    like $text, qr/固定UTF8/, 'log file is UTF-8';
+};
+
 cleanup();
 
 done_testing();
