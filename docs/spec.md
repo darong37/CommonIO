@@ -168,8 +168,7 @@ my $text = read_file({ path => '/tmp/sjis.txt', encoding => 'CP932' });
 ```
 
 **エラー:**
-- ファイルが存在しない場合は例外: `Cannot read`
-- ファイルが空の場合は例外: `file not found or empty`
+- ファイルが存在しない、または読み取りに失敗した場合は例外: `Cannot read`
 - `encoding` が `UTF-8` / `CP932` 以外の場合は例外: `Unsupported file encoding`
 
 ---
