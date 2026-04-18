@@ -33,8 +33,8 @@ my $_out_pid = $$;
 
 END {
     if ($$ == $_out_pid) {
-        %_out_counts = ();
         # Future: report written files and write counts here.
+        %_out_counts = ();
     }
 }
 
@@ -340,11 +340,12 @@ sub out_file {
     my ($path, $text) = @_;
     my $spec = _parse_path($path, qw(path encoding eol));
     my $key  = $spec->{path};
-    if ($_out_counts{$key}) {
+    if (exists $_out_counts{$key} && $_out_counts{$key} > 0) {
         append_file($path, $text);
     } else {
         write_file($path, $text);
     }
+    # Count increments only on success; write_file/append_file die on failure.
     $_out_counts{$key}++;
     return;
 }
