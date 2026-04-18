@@ -34,3 +34,4 @@ lib/
 .claude/worktrees/
 .claude/settings.json
 .claude/commands/
+output/

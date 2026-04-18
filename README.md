@@ -14,25 +14,29 @@ CommonIO is a Perl module for file I/O without worrying about character encoding
 - Unicode-safe `Data::Dumper` output
 - Fork-safe subprocess execution with error propagation
 
+## Requirements
+
+> `LOGDIR` environment variable must be set. CommonIO writes logs to `$LOGDIR/<script><MMDDHHMM>.log`.
+
 ## Usage
 
 ```perl
 use lib 'src';
-use CommonIO qw(write_file append_file read_file write_do read_do
-                log setLogFile dying setup_console dumpU8 run_in_fork);
+use CommonIO qw(write_file read_file out_file log at dying);
 ```
 
 ## API Overview
 
 | API | Description |
 |---|---|
-| `write_file($path, $text\|$lines)` | Write or overwrite a file |
+| `write_file($path, $text\|$lines)` | Overwrite a file |
 | `append_file($path, $text\|$lines)` | Append to a file |
+| `out_file($path, $text\|$lines)` | Overwrite on first call, append on subsequent calls |
 | `read_file($path)` | Read a file (scalar: text, list: lines) |
 | `write_do($path, $var)` | Save a Perl variable to a `.do` file |
 | `read_do($path)` | Load a Perl variable from a `.do` file |
-| `log($level, $msg)` | Log to STDERR (and optionally a file) |
-| `setLogFile($path)` | Set log file destination |
+| `log($level, $msg)` | Log to console and auto-determined file in LOGDIR |
+| `at()` | Return call stack as callers arrayref |
 | `dying($msg)` | Log error and throw with traceback |
 | `setup_console($encoding)` | Set STDOUT/STDERR encoding |
 | `dumpU8($var, %opts)` | Unicode-safe Data::Dumper output |
@@ -60,7 +64,7 @@ write_file({ path => '/tmp/out.txt', encoding => 'CP932', eol => 'crlf' }, $text
 
 | API | Encoding |
 |---|---|
-| `setLogFile` / `log` | UTF-8 (not configurable) |
+| `log` | UTF-8 (not configurable) |
 | `write_do` / `read_do` | UTF-8 (not configurable) |
 
 ## Running Tests
