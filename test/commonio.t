@@ -8,7 +8,7 @@ use Encode ();
 use File::Basename qw(basename);
 
 use CommonIO qw(
-    append_file at dying dumpU8 log read_do read_file
+    append_file at dying dumpU8 log out_file read_do read_file
     run_in_fork setup_console write_do write_file
 );
 
@@ -344,6 +344,59 @@ subtest 'dying logs error to auto file and throws' => sub {
     my @files = sort { (stat($b))[9] <=> (stat($a))[9] } glob("$ENV{LOGDIR}/commonio*.log");
     my $text = read_file($files[0]);
     like $text, qr/\[ERROR\] 自動ログエラー確認/, 'error written to auto log file';
+};
+
+subtest 'out_file first call overwrites existing file' => sub {
+    my $f = "$TMP/out_first.txt";
+    write_file($f, 'initial');
+    out_file($f, 'replaced');
+    is read_file($f), 'replaced', 'first call overwrites';
+};
+
+subtest 'out_file second call appends' => sub {
+    my $f = "$TMP/out_second.txt";
+    out_file($f, "first\n");
+    out_file($f, "second\n");
+    my $text = read_file($f);
+    like $text, qr/first\nsecond/, 'second call appends';
+};
+
+subtest 'out_file third call also appends' => sub {
+    my $f = "$TMP/out_third.txt";
+    out_file($f, "a\n");
+    out_file($f, "b\n");
+    out_file($f, "c\n");
+    my $text = read_file($f);
+    like $text, qr/a\nb\nc/, 'third call appends after second';
+};
+
+subtest 'out_file different paths are independent' => sub {
+    my $f1 = "$TMP/out_path1.txt";
+    my $f2 = "$TMP/out_path2.txt";
+    out_file($f1, 'path1-first');
+    out_file($f2, 'path2-first');
+    out_file($f1, '-path1-second');
+    is read_file($f1), 'path1-first-path1-second', 'path1 counts independently';
+    is read_file($f2), 'path2-first',              'path2 counts independently';
+};
+
+subtest 'out_file accepts hash path with encoding and eol' => sub {
+    my $f = "$TMP/out_hash.txt";
+    out_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュ\n");
+    out_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "追記\n");
+    my $text = read_file($f);
+    like $text, qr/ハッシュ\n追記/, 'hash path spec works with out_file';
+};
+
+subtest 'out_file child process does not clear parent counts' => sub {
+    my $f = "$TMP/out_fork.txt";
+    out_file($f, "parent-first\n");
+    run_in_fork(sub {
+        out_file($f, "child\n");
+    });
+    out_file($f, "parent-second\n");
+    my $text = read_file($f);
+    like $text, qr/parent-first\nchild\nparent-second/, 'parent appends after fork';
 };
 
 cleanup();

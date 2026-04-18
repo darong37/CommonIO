@@ -19,6 +19,7 @@ our @EXPORT_OK = qw(
     dying
     dumpU8
     log
+    out_file
     read_do
     read_file
     run_in_fork
@@ -26,6 +27,16 @@ our @EXPORT_OK = qw(
     write_do
     write_file
 );
+
+my %_out_counts;
+my $_out_pid = $$;
+
+END {
+    if ($$ == $_out_pid) {
+        %_out_counts = ();
+        # Future: report written files and write counts here.
+    }
+}
 
 my $LOG_TARGET;
 
@@ -322,6 +333,19 @@ sub append_file {
     my $encoding = _file_encoding_name($spec->{encoding});
     my $bytes = encode($encoding, $rendered_text, FB_CROAK);
     _write_bytes($spec->{path}, $bytes, '>>');
+    return;
+}
+
+sub out_file {
+    my ($path, $text) = @_;
+    my $spec = _parse_path($path, qw(path encoding eol));
+    my $key  = $spec->{path};
+    if ($_out_counts{$key}) {
+        append_file($path, $text);
+    } else {
+        write_file($path, $text);
+    }
+    $_out_counts{$key}++;
     return;
 }
 
