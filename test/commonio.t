@@ -7,7 +7,7 @@ use File::Path qw(remove_tree);
 use Encode ();
 
 use CommonIO qw(
-    append_file dying dumpU8 log read_do read_file
+    append_file at dying dumpU8 log read_do read_file
     run_in_fork setLogFile setup_console write_do write_file
 );
 
@@ -313,6 +313,40 @@ subtest 'run_in_fork throws when child throws' => sub {
         });
     };
     like $@, qr/confirm failed/, 'parent throws on child failure';
+};
+
+subtest 'at returns callers arrayref' => sub {
+    my $callers = at();
+    is ref($callers), 'ARRAY', 'returns arrayref';
+    ok @$callers > 0, 'at least one frame';
+};
+
+subtest 'at level 0 has required keys' => sub {
+    my $callers = at();
+    my $top = $callers->[0];
+    ok defined $top->{file},       'file defined';
+    ok defined $top->{path},       'path defined';
+    ok defined $top->{line},       'line defined';
+    ok defined $top->{subroutine}, 'subroutine defined';
+};
+
+subtest 'at file is basename of path' => sub {
+    my $callers = at();
+    my $top = $callers->[0];
+    use File::Basename qw(basename);
+    is $top->{file}, basename($top->{path}), 'file is basename of path';
+};
+
+subtest 'at excludes CommonIO internal frames' => sub {
+    my $callers = at();
+    for my $frame (@$callers) {
+        unlike $frame->{file}, qr/CommonIO\.pm$/, "no CommonIO frame: $frame->{file}";
+    }
+};
+
+subtest 'at level 0 is test script' => sub {
+    my $callers = at();
+    like $callers->[0]{file}, qr/commonio\.t$/, 'level 0 is test script';
 };
 
 cleanup();

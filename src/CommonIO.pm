@@ -6,6 +6,8 @@ use utf8;
 
 use Carp qw(confess);
 use Data::Dumper;
+use File::Basename qw(basename);
+use File::Spec;
 use Encode qw(encode decode find_encoding FB_CROAK);
 use Exporter qw(import);
 use I18N::Langinfo qw(langinfo CODESET);
@@ -13,6 +15,7 @@ use POSIX qw(_exit);
 
 our @EXPORT_OK = qw(
     append_file
+    at
     dying
     dumpU8
     log
@@ -49,6 +52,36 @@ sub run_in_fork {
     waitpid($pid, 0);
     CommonIO::dying('confirm failed') if $? != 0;
     return;
+}
+
+sub at {
+    my @raw;
+    my $dep = 0;
+    while (1) {
+        my @c = caller($dep);
+        last unless @c;
+        my ($file, $line, $sub) = @c[1, 2, 3];
+        $dep++;
+        next if $file =~ /\bCommonIO\.pm$/;
+        push @raw, {
+            file       => basename($file),
+            path       => File::Spec->rel2abs($file),
+            line       => $line,
+            subroutine => defined $sub ? $sub : 'main::',
+        };
+    }
+    my @frames = reverse @raw;
+    return \@frames unless @frames;
+
+    # find topmost .pl as level 0; fall back to topmost frame
+    my $top = 0;
+    for my $i (0 .. $#frames) {
+        if ($frames[$i]{file} =~ /\.pl$/i) {
+            $top = $i;
+            last;
+        }
+    }
+    return [@frames[$top .. $#frames]];
 }
 
 sub _normalize_log_level {
