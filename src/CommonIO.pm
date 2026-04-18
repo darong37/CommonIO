@@ -11,7 +11,7 @@ use File::Spec;
 use Encode qw(encode decode find_encoding FB_CROAK);
 use Exporter qw(import);
 use I18N::Langinfo qw(langinfo CODESET);
-use POSIX qw(_exit);
+use POSIX qw(_exit strftime);
 
 our @EXPORT_OK = qw(
     append_file
@@ -22,13 +22,27 @@ our @EXPORT_OK = qw(
     read_do
     read_file
     run_in_fork
-    setLogFile
     setup_console
     write_do
     write_file
 );
 
 my $LOG_TARGET;
+
+# Auto-initialize log file from LOGDIR and calling script name at load time.
+{
+    die "LOGDIR environment variable is not set or empty\n"
+        unless defined $ENV{LOGDIR} && length $ENV{LOGDIR};
+
+    my $callers = CommonIO::at();
+    my $top     = $callers->[0];
+    my $base    = $top->{file};
+    $base =~ s/\.[^.]+$//;
+
+    my $ts      = strftime('%m%d%H%M', localtime);
+    my $logfile = "$ENV{LOGDIR}/$base$ts.log";
+    $LOG_TARGET = { path => $logfile, encoding => 'UTF-8', eol => 'lf' };
+}
 
 sub dying {
     my ($msg) = @_;

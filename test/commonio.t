@@ -9,7 +9,7 @@ use File::Basename qw(basename);
 
 use CommonIO qw(
     append_file at dying dumpU8 log read_do read_file
-    run_in_fork setLogFile setup_console write_do write_file
+    run_in_fork setup_console write_do write_file
 );
 
 my $TMP = '/tmp/spool/commonio-test';
@@ -22,33 +22,6 @@ cleanup();
 mkdir '/tmp/spool' unless -d '/tmp/spool';
 mkdir $TMP or die "Cannot create $TMP: $!";
 
-subtest 'log writes UTF-8 text to log file' => sub {
-    my $log = "$TMP/app.log";
-    setLogFile($log);
-    my $line = log('debug', '漢字ログ');
-    like $line, qr/\[DEBUG\] 漢字ログ/, 'log returns formatted line';
-    my $text = read_file($log);
-    like $text, qr/\[DEBUG\] 漢字ログ/, 'log file gets UTF-8 text';
-};
-
-subtest 'dying logs error and throws' => sub {
-    my $log = "$TMP/error.log";
-    unlink $log if -f $log;
-    setLogFile($log);
-    eval { dying('重大エラー') };
-    like $@, qr/重大エラー/, 'dying throws target message';
-    my $text = read_file($log);
-    like $text, qr/\[ERROR\] 重大エラー/, 'error log file gets message';
-};
-
-subtest 'setLogFile undef disables file logging' => sub {
-    my $log = "$TMP/disabled.log";
-    unlink $log if -f $log;
-    setLogFile(undef);
-    my $line = log('info', 'fileなし');
-    like $line, qr/\[INFO\] fileなし/, 'log still returns formatted line';
-    ok !-f $log, 'no log file created while disabled';
-};
 
 subtest 'write_file rejects unsupported encoding' => sub {
     my $f = "$TMP/enc.txt";
@@ -277,24 +250,6 @@ subtest 'setup_console rejects unsupported encoding' => sub {
     like $@, qr/Unsupported console encoding/i, 'EUC-JP rejected';
 };
 
-subtest 'setLogFile rejects encoding option' => sub {
-    my $f = "$TMP/log_utf8_fixed.log";
-    eval { setLogFile({ path => $f, encoding => 'CP932' }) };
-    like $@, qr/Unsupported path option: encoding/, 'setLogFile rejects encoding';
-};
-
-subtest 'log file is UTF-8 with valid setLogFile path' => sub {
-    my $f = "$TMP/log_utf8_fixed.log";
-    setLogFile($f);
-    log('info', '固定UTF8');
-    setLogFile(undef);
-    open my $fh, '<:raw', $f or die;
-    local $/;
-    my $bytes = <$fh>;
-    close $fh;
-    my $text = Encode::decode('UTF-8', $bytes);
-    like $text, qr/固定UTF8/, 'log file is UTF-8';
-};
 
 subtest 'run_in_fork executes code in child' => sub {
     my $f = "$TMP/fork_result.txt";
@@ -347,6 +302,48 @@ subtest 'at excludes CommonIO internal frames' => sub {
 subtest 'at level 0 is test script' => sub {
     my $callers = at();
     like $callers->[0]{file}, qr/commonio\.t$/, 'level 0 is test script';
+};
+
+subtest 'CommonIO dies with empty LOGDIR' => sub {
+    local $ENV{LOGDIR} = '';
+    my $out = `$^X -Isrc -e 'use CommonIO' 2>&1`;
+    isnt $?, 0, 'exits non-zero with empty LOGDIR';
+    like $out, qr/LOGDIR/i, 'error mentions LOGDIR';
+};
+
+subtest 'log writes to auto-determined file in LOGDIR' => sub {
+    my $logdir = $ENV{LOGDIR};
+    ok defined $logdir && length $logdir, 'LOGDIR is set';
+    log('info', 'auto-log-test-line');
+    my @files = glob("$logdir/commonio*.log");
+    ok @files > 0, 'log file exists in LOGDIR';
+    my $text = read_file($files[0]);
+    like $text, qr/auto-log-test-line/, 'log content written to file';
+};
+
+subtest 'log file name matches commonio+8digit+.log' => sub {
+    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    ok @files > 0, 'log file found';
+    like $files[0], qr|/commonio\d{8}\.log$|, 'filename format: basename+MMDDHHMM.log';
+};
+
+subtest 'log file is UTF-8 encoded' => sub {
+    log('debug', '自動ログUTF8確認');
+    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    open my $fh, '<:raw', $files[0] or die;
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    my $text = Encode::decode('UTF-8', $bytes);
+    like $text, qr/自動ログUTF8確認/, 'log file is valid UTF-8';
+};
+
+subtest 'dying logs error to auto file and throws' => sub {
+    eval { dying('自動ログエラー確認') };
+    like $@, qr/自動ログエラー確認/, 'dying throws message';
+    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    my $text = read_file($files[0]);
+    like $text, qr/\[ERROR\] 自動ログエラー確認/, 'error written to auto log file';
 };
 
 cleanup();
