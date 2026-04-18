@@ -29,19 +29,19 @@ our @EXPORT_OK = qw(
 
 my $LOG_TARGET;
 
-# Auto-initialize log file from LOGDIR and calling script name at load time.
+# Capture the caller script name here because caller() is valid at load time.
 {
     die "LOGDIR environment variable is not set or empty\n"
         unless defined $ENV{LOGDIR} && length $ENV{LOGDIR};
 
-    my $callers = CommonIO::at();
-    my $top     = $callers->[0];
-    my $base    = $top->{file};
+    my $cals = CommonIO::at();
+    my $top  = $cals->[0];
+    my $base = defined $top ? $top->{file} : 'unknown';
     $base =~ s/\.[^.]+$//;
 
-    my $ts      = strftime('%m%d%H%M', localtime);
-    my $logfile = "$ENV{LOGDIR}/$base$ts.log";
-    $LOG_TARGET = { path => $logfile, encoding => 'UTF-8', eol => 'lf' };
+    my $ts = strftime('%m%d%H%M', localtime);
+    my $lp = "$ENV{LOGDIR}/$base$ts.log";
+    $LOG_TARGET = { path => $lp, encoding => 'UTF-8', eol => 'lf' };
 }
 
 sub dying {

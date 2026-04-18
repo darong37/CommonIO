@@ -315,21 +315,21 @@ subtest 'log writes to auto-determined file in LOGDIR' => sub {
     my $logdir = $ENV{LOGDIR};
     ok defined $logdir && length $logdir, 'LOGDIR is set';
     log('info', 'auto-log-test-line');
-    my @files = glob("$logdir/commonio*.log");
+    my @files = sort { (stat($b))[9] <=> (stat($a))[9] } glob("$logdir/commonio*.log");
     ok @files > 0, 'log file exists in LOGDIR';
     my $text = read_file($files[0]);
     like $text, qr/auto-log-test-line/, 'log content written to file';
 };
 
 subtest 'log file name matches commonio+8digit+.log' => sub {
-    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    my @files = sort { (stat($b))[9] <=> (stat($a))[9] } glob("$ENV{LOGDIR}/commonio*.log");
     ok @files > 0, 'log file found';
     like $files[0], qr|/commonio\d{8}\.log$|, 'filename format: basename+MMDDHHMM.log';
 };
 
 subtest 'log file is UTF-8 encoded' => sub {
     log('debug', '自動ログUTF8確認');
-    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    my @files = sort { (stat($b))[9] <=> (stat($a))[9] } glob("$ENV{LOGDIR}/commonio*.log");
     open my $fh, '<:raw', $files[0] or die;
     local $/;
     my $bytes = <$fh>;
@@ -341,7 +341,7 @@ subtest 'log file is UTF-8 encoded' => sub {
 subtest 'dying logs error to auto file and throws' => sub {
     eval { dying('自動ログエラー確認') };
     like $@, qr/自動ログエラー確認/, 'dying throws message';
-    my @files = glob("$ENV{LOGDIR}/commonio*.log");
+    my @files = sort { (stat($b))[9] <=> (stat($a))[9] } glob("$ENV{LOGDIR}/commonio*.log");
     my $text = read_file($files[0]);
     like $text, qr/\[ERROR\] 自動ログエラー確認/, 'error written to auto log file';
 };
