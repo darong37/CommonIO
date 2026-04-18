@@ -5,6 +5,7 @@ use utf8;
 use Test::More;
 use File::Path qw(remove_tree);
 use Encode ();
+use File::Basename qw(basename);
 
 use CommonIO qw(
     append_file at dying dumpU8 log read_do read_file
@@ -333,7 +334,6 @@ subtest 'at level 0 has required keys' => sub {
 subtest 'at file is basename of path' => sub {
     my $callers = at();
     my $top = $callers->[0];
-    use File::Basename qw(basename);
     is $top->{file}, basename($top->{path}), 'file is basename of path';
 };
 

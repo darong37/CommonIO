@@ -63,6 +63,7 @@ sub at {
         my ($file, $line, $sub) = @c[1, 2, 3];
         $dep++;
         next if $file =~ /\bCommonIO\.pm$/;
+        # caller()[3] is the sub that called this frame, not the one executing here.
         push @raw, {
             file       => basename($file),
             path       => File::Spec->rel2abs($file),
@@ -71,6 +72,7 @@ sub at {
         };
     }
     my @frames = reverse @raw;
+    # Guard against empty stack (e.g., called from string eval with no script frames).
     return \@frames unless @frames;
 
     # find topmost .pl as level 0; fall back to topmost frame
