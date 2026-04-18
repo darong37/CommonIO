@@ -45,6 +45,9 @@ my $LOG_TARGET;
     die "LOGDIR environment variable is not set or empty\n"
         unless defined $ENV{LOGDIR} && length $ENV{LOGDIR};
 
+    die "LOGDIR directory does not exist: $ENV{LOGDIR}\n"
+        unless -d $ENV{LOGDIR};
+
     my $cals = CommonIO::at();
     my $top  = $cals->[0];
     my $base = defined $top ? $top->{file} : 'unknown';
@@ -52,6 +55,11 @@ my $LOG_TARGET;
 
     my $ts = strftime('%m%d%H%M', localtime);
     my $lp = "$ENV{LOGDIR}/$base$ts.log";
+
+    # Verify the log file is writable before the first log() call.
+    open my $fh, '>>', $lp or die "Cannot open log file $lp: $!\n";
+    close $fh;
+
     $LOG_TARGET = { path => $lp, encoding => 'UTF-8', eol => 'lf' };
 }
 

@@ -24,6 +24,7 @@
 |---|---|---|---|
 | CommonIO dies with empty LOGDIR | LOGDIR が空のとき use CommonIO で die する | `$ENV{LOGDIR} = ''` を設定したサブプロセス | 終了コードが非ゼロ／エラーメッセージに「LOGDIR」が含まれる |
 | CommonIO dies with unset LOGDIR | LOGDIR が未定義のとき use CommonIO で die する | `delete $ENV{LOGDIR}` したサブプロセス | 終了コードが非ゼロ／エラーメッセージに「LOGDIR」が含まれる |
+| CommonIO dies when LOGDIR directory does not exist | LOGDIR ディレクトリが存在しないとき use CommonIO で die する | 存在しないパスを LOGDIR に指定 | 終了コードが非ゼロ／「LOGDIR directory does not exist」が含まれる |
 | log writes to auto-determined file in LOGDIR | log が LOGDIR 配下の自動ファイルへ書き込む | LOGDIR が設定済み | LOGDIR 配下に `commonio*.log` が存在し、ログ内容が書き込まれる |
 | log file name matches commonio+8digit+.log | ログファイル名が `<basename><MMDDHHMM>.log` 形式 | LOGDIR が設定済み | ファイル名が `/commonio\d{8}\.log$` にマッチする |
 | log file is UTF-8 encoded | ログファイルが UTF-8 で書き込まれる | LOGDIR が設定済み | バイト列を UTF-8 でデコードして日本語メッセージが読める |

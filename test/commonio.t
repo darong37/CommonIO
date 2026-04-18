@@ -319,6 +319,12 @@ subtest 'CommonIO dies with unset LOGDIR' => sub {
     like $out, qr/LOGDIR/i, 'error mentions LOGDIR';
 };
 
+subtest 'CommonIO dies when LOGDIR directory does not exist' => sub {
+    my $out = `LOGDIR=/nonexistent/path $^X -Isrc -e 'use CommonIO' 2>&1`;
+    isnt $?, 0, 'exits non-zero when LOGDIR dir missing';
+    like $out, qr/LOGDIR directory does not exist/i, 'error mentions missing directory';
+};
+
 subtest 'log returns formatted line' => sub {
     my $line = log('info', '戻り値テスト');
     like $line, qr/\[INFO\] 戻り値テスト/, 'log returns formatted line string';
