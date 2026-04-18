@@ -311,6 +311,19 @@ subtest 'CommonIO dies with empty LOGDIR' => sub {
     like $out, qr/LOGDIR/i, 'error mentions LOGDIR';
 };
 
+subtest 'CommonIO dies with unset LOGDIR' => sub {
+    local $ENV{LOGDIR};
+    delete $ENV{LOGDIR};
+    my $out = `$^X -Isrc -e 'use CommonIO' 2>&1`;
+    isnt $?, 0, 'exits non-zero with unset LOGDIR';
+    like $out, qr/LOGDIR/i, 'error mentions LOGDIR';
+};
+
+subtest 'log returns formatted line' => sub {
+    my $line = log('info', '戻り値テスト');
+    like $line, qr/\[INFO\] 戻り値テスト/, 'log returns formatted line string';
+};
+
 subtest 'log writes to auto-determined file in LOGDIR' => sub {
     my $logdir = $ENV{LOGDIR};
     ok defined $logdir && length $logdir, 'LOGDIR is set';

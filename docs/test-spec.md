@@ -18,15 +18,38 @@
 
 ## テストケース一覧
 
-### ログ系（log / setLogFile / dying）
+### ログ系（log / dying）
 
 | テスト名 | 目的 | 前提条件 | 確認内容 |
 |---|---|---|---|
-| log writes UTF-8 text to log file | log 関数の基本動作（書式・ファイル書き込み） | setLogFile でログファイルを設定 | 戻り値が `[DEBUG] 漢字ログ` 形式になる／ログファイルに UTF-8 テキストが書き込まれる |
-| dying logs error and throws | dying 関数がエラーを記録して例外を投げる | setLogFile でエラーログファイルを設定 | `die` で指定メッセージが伝播する／ログファイルに `[ERROR]` 行が書き込まれる |
-| setLogFile undef disables file logging | setLogFile(undef) でファイル書き込みを無効化 | ログファイルなし状態で log を呼ぶ | 戻り値は正常に返る／ファイルが作成されない |
-| setLogFile rejects encoding option | encoding キーを渡すと即座に例外 | setLogFile({ path => ..., encoding => 'CP932' }) | 「Unsupported path option: encoding」例外が発生する |
-| log file is UTF-8 with valid setLogFile path | ログファイルが UTF-8 で書き込まれること | setLogFile でパスのみ設定 | ファイルのバイト列を UTF-8 でデコードしてメッセージが読める |
+| CommonIO dies with empty LOGDIR | LOGDIR が空のとき use CommonIO で die する | `$ENV{LOGDIR} = ''` を設定したサブプロセス | 終了コードが非ゼロ／エラーメッセージに「LOGDIR」が含まれる |
+| CommonIO dies with unset LOGDIR | LOGDIR が未定義のとき use CommonIO で die する | `delete $ENV{LOGDIR}` したサブプロセス | 終了コードが非ゼロ／エラーメッセージに「LOGDIR」が含まれる |
+| log writes to auto-determined file in LOGDIR | log が LOGDIR 配下の自動ファイルへ書き込む | LOGDIR が設定済み | LOGDIR 配下に `commonio*.log` が存在し、ログ内容が書き込まれる |
+| log file name matches commonio+8digit+.log | ログファイル名が `<basename><MMDDHHMM>.log` 形式 | LOGDIR が設定済み | ファイル名が `/commonio\d{8}\.log$` にマッチする |
+| log file is UTF-8 encoded | ログファイルが UTF-8 で書き込まれる | LOGDIR が設定済み | バイト列を UTF-8 でデコードして日本語メッセージが読める |
+| log returns formatted line | log の戻り値が `[LEVEL] message` 形式 | なし | 戻り値が `[INFO] …` 形式にマッチする |
+| dying logs error to auto file and throws | dying がエラーをログして例外を投げる | LOGDIR が設定済み | 例外メッセージが伝播する／ログファイルに `[ERROR]` 行が書き込まれる |
+
+### at() 系
+
+| テスト名 | 目的 | 前提条件 | 確認内容 |
+|---|---|---|---|
+| at returns callers arrayref | at() が配列リファレンスを返す | なし | 戻り値が ARRAY リファレンスで要素数が 1 以上 |
+| at level 0 has required keys | caller_info が必要な4キーを持つ | なし | `file`・`path`・`line`・`subroutine` がすべて defined |
+| at file is basename of path | file が path のベースネームと一致する | なし | `file eq basename(path)` |
+| at excludes CommonIO internal frames | CommonIO.pm 内部フレームを含まない | なし | すべてのフレームで `file !~ /CommonIO\.pm$/` |
+| at level 0 is test script | レベル 0 がテストスクリプトのフレーム | なし | `file =~ /commonio\.t$/` |
+
+### out_file 系
+
+| テスト名 | 目的 | 前提条件 | 確認内容 |
+|---|---|---|---|
+| out_file first call overwrites existing file | 初回呼び出しで既存ファイルを上書き | ファイルが存在する | read_file の結果が新しい内容のみ |
+| out_file second call appends | 2回目は追記になる | なし | read_file の結果に1回目と2回目の内容が両方含まれる |
+| out_file third call also appends | 3回目以降も追記 | なし | 3行分が順番に含まれる |
+| out_file different paths are independent | 異なるパスのカウントは独立 | なし | 各パスで期待した内容のみ存在する |
+| out_file accepts hash path with encoding and eol | ハッシュ形式のパス指定に対応 | なし | ハッシュ指定で書き込みと追記が正しく動作する |
+| out_file child process does not clear parent counts | fork 後の子プロセス終了で親のカウントが消えない | なし | 子プロセス実行後も親の2回目呼び出しが追記になる |
 
 ### ファイルIO系（write_file / append_file / read_file）
 
