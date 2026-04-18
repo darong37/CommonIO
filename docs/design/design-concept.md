@@ -15,6 +15,8 @@
 - `opts`: 補助指定のまとまりである。
 - `line`: 整形済みの 1 行ログ文字列である。
 - `console_encoding`: `setup_console` が設定して返すコンソール用エンコーディング名である。
+- `callers`: 呼び出し位置の履歴を表す `caller_info` の配列リファレンスである。
+- `caller_info`: `callers` の 1 要素を表すハッシュである。`file`、`path`、`line`、`subroutine` を持つ。
 
 ## Concept
 
@@ -26,6 +28,7 @@
 - `read_file`、`write_file`、`read_do`、`write_do`、`log`、`setup_console` を使うことで、利用者は個別の入出力手順をあまり意識せずに済むようにする。
 - `dying` は単なる `die` の置き換えではなく、メッセージをログへ残し、トレースバック付きで失敗を表現する共通経路として扱う。
 - ログはまずコンソールへ出し、必要なときだけ追加でファイルへ保存する。
+- ログファイルは利用者が後から設定するのではなく、読込時点で自動決定できる形を基本にする。
 - `run_in_fork` のような周辺機能も、エラー処理とログ方針を揃えて使えるように CommonIO に含める。
 - この共通化の対象は今後も増やせるようにし、入出力まわりで繰り返し書く処理を集約していく。
 
@@ -37,11 +40,12 @@
 | --- | --- | --- |
 | `write_file` | `write_file($path, $text)`<br>`write_file($path, $lines)` | なし |
 | `append_file` | `append_file($path, $text)`<br>`append_file($path, $lines)` | なし |
+| `out_file` | `out_file($path, $text)`<br>`out_file($path, $lines)` | なし |
 | `read_file` | `read_file($path)` | スカラでは `text`、リストコンテキストでは `lines` |
 | `write_do` | `write_do($path, $var)` | なし |
 | `read_do` | `read_do($path)` | `var` |
 | `log` | `log($level, $msg)` | `line` |
-| `setLogFile` | `setLogFile($path)` | 設定後の `path`、`undef` 指定時は返さない |
+| `at` | `at()` | `callers` |
 | `dying` | `dying($msg)` | 戻らない |
 | `setup_console` | `setup_console($encoding)` | `console_encoding` |
 | `dumpU8` | `dumpU8($var, %opts)` | `dump` |
@@ -53,7 +57,7 @@
 - ハッシュの `path` は次のキーを扱う。
 - `path`: 必須のファイルパス。
 - `encoding`: `write_file` / `append_file` / `read_file` でのみ任意。省略時は `UTF-8`、指定可能なのは `CP932` を含む許可値のみ。
-- `eol`: `write_file` / `append_file` / `read_file` と `setLogFile` でのみ任意。書き込み時の既定値は `lf`、読み込み時の既定値は `preserve`。
+- `eol`: `write_file` / `append_file` / `read_file` でのみ任意。書き込み時の既定値は `lf`、読み込み時の既定値は `preserve`。
 
 ### `write_file`
 
@@ -66,6 +70,13 @@
 ### `append_file`
 
 - `append_file($path, $text)` または `append_file($path, $lines)` は `write_file` と同じ変換規則で末尾へ追記する。
+- 戻り値は持たない。
+
+### `out_file`
+
+- `out_file($path, $text)` または `out_file($path, $lines)` は、同じ `path` への 1 回目の書き込みでは `write_file` と同じ動作をし、2 回目以降は `append_file` と同じ動作をする。
+- 既出判定はファイルパス文字列ごとに行う。
+- 書き込みが成功した回数を、同じファイルパス文字列ごとに数える。
 - 戻り値は持たない。
 
 ### `read_file`
@@ -91,15 +102,21 @@
 
 - `log($level, $msg)` は `[LEVEL] message` 形式の 1 行を返す。
 - ログはコンソールへ出力する。
-- `setLogFile` で保存先が設定されていれば、同じ内容をファイルへも追記する。
+- ログファイルは読込時に自動決定し、同じ内容をファイルへも追記する。
+- ログファイル名の決定では必ず `at()` を使い、最上位の `.pl` ファイル名を `at` のレベル 0 から取得する。
+- `.pl` が見つからないときは、`at()` で取得できた最上位フレームを使う。
 - ログファイルの既定値は `encoding => UTF-8`、`eol => lf` である。
 
-### `setLogFile`
+### `at`
 
-- `setLogFile($path)` はログファイルの保存先を設定する。
-- ログファイルの `encoding` は `UTF-8` 固定で、必要なら `eol` のみ指定できる。
-- `undef` を渡すとファイル保存を無効にする。
-- 設定された `path` を返す。
+- `at()` は `caller` ベースで集めた呼び出し履歴を、`callers` として返す。
+- 返す配列は最上位の `.pl` をレベル 0 とし、そこから 1、2、3 と現在の呼び出し位置まで順に並べる。
+- 最上位の `.pl` が見つからないときは、取得できた最上位フレームをレベル 0 とする。
+- CommonIO 自身の内部フレームは返却対象に含めない。
+- 各要素は `caller_info` のハッシュであり、`file`、`path`、`line`、`subroutine` を返す。
+- `file` はベースネームのファイル名、`path` はフルパスのファイルパスとする。
+- `subroutine` はパッケージ名を含む完全修飾名、すなわち `Package::subroutine` の形とする。
+- `at` はログファイル名の自動決定にも使える共通 API として扱う。
 
 ### `dying`
 
@@ -123,3 +140,21 @@
 - 子プロセス内で例外が起きたときは `error` ログを残し、親側では失敗として例外にする。
 - 戻り値は持たない。
 
+## To Do
+
+- ログファイル設定は公開 API としては持たず、モジュール読込時に自動決定できる形へ置き換える。
+- ログディレクトリは環境変数 `LOGDIR` を必須とし、未設定または空のときはその場で `die` する。
+- 自動生成するログファイル名は、最上位の `.pl` ファイルのベース名から `.pl` を除いた名前に、月日時分を 2 桁ずつ連結した 8 桁の時刻文字列を続け、末尾を `.log` にしたものとする。
+- ログファイル名に使う月日時分はローカル時刻で決める。
+- ログ出力先は `LOGDIR` 配下に固定し、`log` が最初に呼ばれる前からファイルへ追記できる状態を保証する。
+- ログファイル名の決定では必ず `at()` を使い、最上位 `.pl` の取得を個別実装で重複させない。
+- 最上位 `.pl` が見つからないときは、`at()` で取得できた最上位フレームをそのまま使う。
+- `at()` を正式 API として追加し、最上位の `.pl` をレベル 0 とした全呼び出し階層を配列リファレンスで返せるようにする。
+- `setLogFile` は公開 API としては廃止し、必要なら内部専用処理としてのみ残せる形に整理する。
+- `write_file` と `append_file` を内包する新 API として `out_file` を追加する。
+- `out_file($path, $text)` または `out_file($path, $lines)` は、同じ `path` を最初に開いた 1 回目だけ `write_file` 相当、2 回目以降は `append_file` 相当に切り替える。
+- `out_file` の切替判定に使う「既に開いた `path`」はハッシュで記録し、キーはファイルパス文字列とする。
+- このハッシュの値は、その `path` への書き込みが成功した回数とする。
+- この記録はハッシュの保持を開始したプロセス自身の `PID`（`$$`）と組で管理し、同じ `PID` で `END` ブロックが動いたときだけクリアする。PPID ではない。
+- 並列処理や fork 後の子プロセス終了では、この記録をクリアしない。
+- `END` ブロックを作り、この記録を使って書き込んだファイル一覧と各 `path` の書き込み回数を画面出力できる余地として `Future: report written files and write counts here.` という英語コメントを実装側へ残せるようにする。
