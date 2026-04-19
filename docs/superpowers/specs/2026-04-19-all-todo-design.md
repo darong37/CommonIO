@@ -67,7 +67,7 @@
 ### 変更内容
 
 - `dec($data)` の基本動作・戻り値は変えない（戻り値は `text`）。
-- `is_utf8($data)` が false かつ UTF-8 decode に失敗したとき、`Encode::Guess` で文字コードを推測する。
+- `is_utf8($data)` が false かつ utf-8 decode に失敗したとき、`Encode::Guess` で文字コードを推測する。
 - 推測できた場合：`warn "guess_encoding: <name>\n"` を出す。
 - 推測できなかった場合：`warn "guess_encoding: unknown\n"` を出す。
 - いずれの場合も `data` をそのまま返す（例外にはしない）。
@@ -83,8 +83,8 @@
 dec($data)
 ├─ $data が undef → そのまま返す
 ├─ is_utf8($data) が true → そのまま返す
-├─ UTF-8 decode 成功 → decode した text を返す
-└─ UTF-8 decode 失敗
+├─ utf-8 decode 成功 → decode した text を返す
+└─ utf-8 decode 失敗
    ├─ Encode::Guess で推測成功 → warn "guess_encoding: <name>" → $data をそのまま返す
    └─ 推測失敗 → warn "guess_encoding: unknown" → $data をそのまま返す
 ```
@@ -131,7 +131,7 @@ dec($data)
 
 | テストケース | 確認内容 |
 |---|---|
-| UTF-8 decode 失敗のバイト列を渡す | `warn` が出て `data` がそのまま返る |
+| utf-8 decode 失敗のバイト列を渡す | `warn` が出て `data` がそのまま返る |
 | CP932 バイト列を渡す | `guess_encoding` の warn が出る |
 
 ### `dp` 出力経路
