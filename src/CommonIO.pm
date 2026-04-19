@@ -404,15 +404,10 @@ sub dec {
 sub dp {
     my @args = @_;
     return unless @args;
-    # np() captures the raw UTF-8 bytes without printing; write to a raw
-    # duplicate of STDERR to avoid double-encoding with any encoding layer.
     my $out = (@args == 1 && ref $args[0])
         ? &np($args[0])
         : &np(\@args);
-    open my $raw_err, '>>&', \*STDERR or return;
-    binmode $raw_err, ':raw';
-    print {$raw_err} $out;
-    close $raw_err;
+    print STDERR $out;
     return;
 }
 
