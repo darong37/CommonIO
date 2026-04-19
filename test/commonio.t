@@ -404,6 +404,38 @@ subtest 'out_file child process does not clear parent counts' => sub {
     like $text, qr/parent-first\nchild\nparent-second/, 'parent appends after fork';
 };
 
+subtest 'out_file with mode > always overwrites' => sub {
+    my $f = "$TMP/out_mode_overwrite.txt";
+    out_file('>', $f, "first\n");
+    out_file('>', $f, "second\n");
+    is read_file($f), "second\n", 'mode > overwrites each time';
+};
+
+subtest 'out_file with mode >> always appends' => sub {
+    my $f = "$TMP/out_mode_append.txt";
+    out_file('>>', $f, "first\n");
+    out_file('>>', $f, "second\n");
+    like read_file($f), qr/first\nsecond/, 'mode >> appends each time';
+};
+
+subtest 'out_file with mode ? is overwrite then append' => sub {
+    my $f = "$TMP/out_mode_q.txt";
+    out_file('?', $f, "first\n");
+    out_file('?', $f, "second\n");
+    like read_file($f), qr/first\nsecond/, 'mode ? appends from 2nd call';
+};
+
+subtest 'out_file rejects path that is a mode character' => sub {
+    eval { out_file({ path => '>', encoding => 'UTF-8' }, 'text') };
+    like $@, qr/mode character/i, 'path => > is rejected';
+
+    eval { out_file({ path => '>>' }, 'text') };
+    like $@, qr/mode character/i, 'path => >> is rejected';
+
+    eval { out_file({ path => '?' }, 'text') };
+    like $@, qr/mode character/i, 'path => ? is rejected';
+};
+
 subtest 'dp does not die with various inputs' => sub {
     open my $saved_err, '>&', \*STDERR or die "Cannot dup STDERR: $!";
     open STDERR, '>', '/dev/null' or die "Cannot open /dev/null: $!";

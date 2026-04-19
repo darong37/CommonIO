@@ -314,6 +314,15 @@ sub _write_bytes {
     return;
 }
 
+sub _encode_and_write {
+    my ($spec, $text, $mode) = @_;
+    my $rendered = _render_write_text($text, $spec->{eol});
+    my $enc      = _file_encoding_name($spec->{encoding});
+    my $bytes    = encode($enc, $rendered, FB_CROAK);
+    _write_bytes($spec->{path}, $bytes, $mode);
+    return;
+}
+
 sub write_file {
     my ($path, $text) = @_;
     my $spec = _parse_path($path, qw(path encoding eol));
@@ -335,15 +344,36 @@ sub append_file {
 }
 
 sub out_file {
-    my ($path, $text) = @_;
-    my $spec = _parse_path($path, qw(path encoding eol));
-    my $key  = $spec->{path};
-    if (exists $_out_counts{$key} && $_out_counts{$key} > 0) {
-        append_file($path, $text);
+    my ($first, @rest) = @_;
+
+    my ($mode, $path_arg, $text);
+    if (defined $first && ($first eq '>' || $first eq '>>' || $first eq '?')) {
+        $mode     = $first;
+        $path_arg = $rest[0];
+        $text     = $rest[1];
     } else {
-        write_file($path, $text);
+        $mode     = '?';
+        $path_arg = $first;
+        $text     = $rest[0];
     }
-    # Count increments only on success; write_file/append_file die on failure.
+
+    my $spec = _parse_path($path_arg, qw(path encoding eol));
+    my $key  = $spec->{path};
+
+    CommonIO::dying("path must not be a mode character: $key")
+        if $key eq '>' || $key eq '>>' || $key eq '?';
+
+    my $actual_mode;
+    if ($mode eq '>') {
+        $actual_mode = '>';
+    } elsif ($mode eq '>>') {
+        $actual_mode = '>>';
+    } else {
+        $actual_mode = (exists $_out_counts{$key} && $_out_counts{$key} > 0)
+            ? '>>' : '>';
+    }
+
+    _encode_and_write($spec, $text, $actual_mode);
     $_out_counts{$key}++;
     return;
 }
