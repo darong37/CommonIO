@@ -26,7 +26,6 @@ our @EXPORT_OK = qw(
     read_do
     read_file
     run_in_fork
-    setup_console
     write_do
     write_file
 );
@@ -396,13 +395,12 @@ sub dumpU8 {
     return $dump;
 }
 
-sub setup_console {
-    my ($encoding) = @_;
-    my $console_encoding = _console_encoding_name($encoding);
+sub _setup_console {
+    my $console_encoding = _console_encoding_name();
     binmode STDOUT, ":encoding($console_encoding)"
-        or CommonIO::dying("Cannot set STDOUT encoding to $console_encoding: $!");
+        or die "Cannot set STDOUT encoding to $console_encoding: $!\n";
     binmode STDERR, ":encoding($console_encoding)"
-        or CommonIO::dying("Cannot set STDERR encoding to $console_encoding: $!");
+        or die "Cannot set STDERR encoding to $console_encoding: $!\n";
     return $console_encoding;
 }
 
@@ -424,5 +422,7 @@ sub read_do {
     CommonIO::dying("Failed to read $file_path: file not found or empty") unless defined $var;
     return $var;
 }
+
+BEGIN { _setup_console() }
 
 1;

@@ -9,7 +9,7 @@ use File::Basename qw(basename);
 
 use CommonIO qw(
     append_file at dec dp dying dumpU8 log out_file read_do read_file
-    run_in_fork setup_console write_do write_file
+    run_in_fork write_do write_file
 );
 
 my $TMP = '/tmp/spool/commonio-test';
@@ -227,29 +227,15 @@ subtest 'dumpU8 with indent=>0 produces one line' => sub {
     unlike $dump, qr/\n/, 'no newline with indent 0';
 };
 
-subtest 'setup_console returns UTF-8' => sub {
-    my $enc = setup_console('UTF-8');
-    is $enc, 'UTF-8', 'returns UTF-8';
+subtest '_setup_console auto-runs: STDOUT has encoding layer' => sub {
+    my @layers = PerlIO::get_layers(STDOUT);
+    ok grep( { /^encoding/ } @layers ), 'STDOUT has encoding layer';
 };
 
-subtest 'setup_console returns CP932' => sub {
-    my $enc = setup_console('CP932');
-    is $enc, 'CP932', 'returns CP932';
-    setup_console('UTF-8');    # テスト後に UTF-8 へ戻す
+subtest '_setup_console auto-runs: STDERR has encoding layer' => sub {
+    my @layers = PerlIO::get_layers(STDERR);
+    ok grep( { /^encoding/ } @layers ), 'STDERR has encoding layer';
 };
-
-subtest 'setup_console with no arg does not throw' => sub {
-    my $enc;
-    eval { $enc = setup_console() };
-    ok !$@, 'no exception without arg';
-    ok defined $enc, 'returns encoding name';
-};
-
-subtest 'setup_console rejects unsupported encoding' => sub {
-    eval { setup_console('EUC-JP') };
-    like $@, qr/Unsupported console encoding/i, 'EUC-JP rejected';
-};
-
 
 subtest 'run_in_fork executes code in child' => sub {
     my $f = "$TMP/fork_result.txt";
