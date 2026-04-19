@@ -156,18 +156,6 @@ sub _log_file_bytes {
     return;
 }
 
-sub _print_console_line {
-    my ($line) = @_;
-    my $encoding = eval {
-        my $codeset = langinfo(CODESET);
-        _encoding_name($codeset || 'UTF-8');
-    } || 'UTF-8';
-    my $bytes = encode($encoding, $line, FB_CROAK);
-    binmode STDERR, ':raw';
-    CORE::print STDERR $bytes;
-    return;
-}
-
 sub log {
     my ($level, $msg) = @_;
     my $name = _normalize_log_level($level);
@@ -175,7 +163,7 @@ sub log {
     my $line = "[$name] $msg";
     $line .= "\n" unless $line =~ /\n\z/;
 
-    _print_console_line($line);
+    print STDERR $line;
 
     if ($LOG_TARGET) {
         my $text = _normalize_write_eol($line, $LOG_TARGET->{eol});
