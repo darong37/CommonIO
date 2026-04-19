@@ -9,7 +9,7 @@ use Data::Dumper;
 use Data::Printer escape_chars => 'none';
 use File::Basename qw(basename);
 use File::Spec;
-use Encode qw(encode decode find_encoding FB_CROAK);
+use Encode qw(encode decode find_encoding is_utf8 FB_CROAK);
 use Exporter qw(import);
 use I18N::Langinfo qw(langinfo CODESET);
 use POSIX qw(_exit strftime);
@@ -17,6 +17,7 @@ use POSIX qw(_exit strftime);
 our @EXPORT_OK = qw(
     append_file
     at
+    dec
     dp
     dying
     dumpU8
@@ -360,6 +361,14 @@ sub read_file {
     my $text = decode($encoding, $bytes, FB_CROAK);
     $text = _normalize_read_eol($text, $spec->{eol});
     return wantarray ? _split_lines($text) : $text;
+}
+
+sub dec {
+    my ($data) = @_;
+    return $data unless defined $data;
+    return $data if is_utf8($data);
+    my $text = eval { decode('UTF-8', $data, FB_CROAK) };
+    return defined $text ? $text : $data;
 }
 
 sub dp {

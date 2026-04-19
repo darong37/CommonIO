@@ -8,7 +8,7 @@ use Encode ();
 use File::Basename qw(basename);
 
 use CommonIO qw(
-    append_file at dp dying dumpU8 log out_file read_do read_file
+    append_file at dec dp dying dumpU8 log out_file read_do read_file
     run_in_fork setup_console write_do write_file
 );
 
@@ -432,6 +432,36 @@ subtest 'dp does not die with various inputs' => sub {
     ok eval { dp(['日本語', '漢字']); 1 }, 'dp(arrayref with kanji)';
 
     open STDERR, '>&', $saved_err or die "Cannot restore STDERR: $!";
+};
+
+subtest 'dec converts UTF-8 bytes to Perl string' => sub {
+    my $bytes = Encode::encode('UTF-8', '日本語');
+    my $text  = dec($bytes);
+    ok Encode::is_utf8($text), 'result has UTF-8 flag';
+    is $text, '日本語', 'decoded correctly';
+};
+
+subtest 'dec passes through already-decoded Perl string' => sub {
+    my $str = '日本語';
+    my $out = dec($str);
+    is $out, $str, 'unchanged';
+    ok Encode::is_utf8($out), 'still has UTF-8 flag';
+};
+
+subtest 'dec passes through ASCII string' => sub {
+    my $out = dec('hello');
+    is $out, 'hello', 'ASCII unchanged';
+};
+
+subtest 'dec returns original on invalid UTF-8' => sub {
+    my $bad = "\x80\x81";
+    my $out = dec($bad);
+    is $out, $bad, 'invalid UTF-8 returned as-is';
+};
+
+subtest 'dec returns undef for undef input' => sub {
+    my $out = dec(undef);
+    ok !defined $out, 'undef in, undef out';
 };
 
 cleanup();
