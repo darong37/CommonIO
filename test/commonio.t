@@ -8,8 +8,8 @@ use Encode ();
 use File::Basename qw(basename);
 
 use CommonIO qw(
-    append_file at dec dp dying dumpU8 log out_file read_do read_file
-    run_in_fork write_do write_file
+    at dec dp dying dumpU8 log out_file read_do read_file
+    run_in_fork write_do
 );
 
 my $TMP = '/tmp/spool/commonio-test';
@@ -23,90 +23,23 @@ mkdir '/tmp/spool' unless -d '/tmp/spool';
 mkdir $TMP or die "Cannot create $TMP: $!";
 
 
-subtest 'write_file rejects unsupported encoding' => sub {
-    my $f = "$TMP/enc.txt";
-    eval { write_file({ path => $f, encoding => 'EUC-JP' }, 'test') };
-    like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected';
-};
-
 subtest 'read_file rejects unsupported encoding' => sub {
     my $f = "$TMP/enc_r.txt";
-    write_file($f, 'test');
+    out_file('>', $f, 'test');
     eval { read_file({ path => $f, encoding => 'EUC-JP' }) };
     like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on read';
 };
 
-subtest 'append_file rejects unsupported encoding' => sub {
-    my $f = "$TMP/enc_a.txt";
-    write_file($f, 'base');
-    eval { append_file({ path => $f, encoding => 'EUC-JP' }, 'test') };
-    like $@, qr/Unsupported file encoding/i, 'EUC-JP is rejected on append';
-};
-
-subtest 'write_file writes UTF-8 text' => sub {
-    my $f = "$TMP/write_utf8.txt";
-    write_file($f, "日本語テキスト\n");
-    my $text = read_file($f);
-    like $text, qr/日本語テキスト/, 'UTF-8 round-trip ok';
-};
-
-subtest 'write_file writes CRLF' => sub {
-    my $f = "$TMP/write_crlf.txt";
-    write_file({ path => $f, eol => 'crlf' }, "line1\nline2");
-    open my $fh, '<:raw', $f or die;
-    local $/;
-    my $bytes = <$fh>;
-    close $fh;
-    like $bytes, qr/\r\n/, 'CRLF bytes present';
-};
-
-subtest 'write_file preserves eol' => sub {
-    my $f = "$TMP/write_preserve.txt";
-    write_file({ path => $f, eol => 'preserve' }, "line1\r\nline2\nline3");
-    open my $fh, '<:raw', $f or die;
-    local $/;
-    my $bytes = <$fh>;
-    close $fh;
-    like $bytes, qr/line1\r\nline2\nline3/, 'mixed eol preserved';
-};
-
-subtest 'write_file writes array lines' => sub {
-    my $f = "$TMP/write_lines.txt";
-    write_file($f, ['alpha', 'beta', 'gamma']);
-    my $text = read_file($f);
-    like $text, qr/alpha\nbeta\ngamma/, 'lines joined with LF';
-};
-
-subtest 'write_file writes CP932' => sub {
-    my $f = "$TMP/write_cp932.txt";
-    write_file({ path => $f, encoding => 'CP932' }, "テスト");
-    open my $fh, '<:raw', $f or die;
-    local $/;
-    my $bytes = <$fh>;
-    close $fh;
-    # CP932 のカタカナは 2 バイト/文字、UTF-8 は 3 バイト/文字なので CP932 の方が短い
-    # これにより CP932 エンコーディングが実際に適用されたことを確認できる
-    ok length($bytes) < length(Encode::encode('UTF-8', 'テスト')), 'CP932 bytes differ from UTF-8';
-};
-
-subtest 'append_file appends to existing file' => sub {
-    my $f = "$TMP/append.txt";
-    write_file($f, "first\n");
-    append_file($f, "second\n");
-    my $text = read_file($f);
-    like $text, qr/first\nsecond/, 'both lines present';
-};
-
 subtest 'read_file returns scalar text' => sub {
     my $f = "$TMP/read_scalar.txt";
-    write_file($f, "hello world");
+    out_file('>', $f, "hello world");
     my $text = read_file($f);
     is $text, "hello world", 'scalar text matches';
 };
 
 subtest 'read_file returns line array' => sub {
     my $f = "$TMP/read_lines.txt";
-    write_file($f, "line1\nline2\nline3");
+    out_file('>', $f, "line1\nline2\nline3");
     my @lines = read_file($f);
     is scalar @lines, 3, 'three lines';
     is $lines[0], 'line1', 'first line ok';
@@ -139,14 +72,14 @@ subtest 'read_file throws on missing file' => sub {
 
 subtest 'read_file reads CP932 file' => sub {
     my $f = "$TMP/read_cp932.txt";
-    write_file({ path => $f, encoding => 'CP932' }, "テスト");
+    out_file('>', { path => $f, encoding => 'CP932' }, "テスト");
     my $text = read_file({ path => $f, encoding => 'CP932' });
     is $text, 'テスト', 'CP932 round-trip ok';
 };
 
 subtest 'read_file with hash path spec' => sub {
     my $f = "$TMP/read_hash.txt";
-    write_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュpath");
+    out_file('>', { path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュpath");
     my $text = read_file({ path => $f, encoding => 'UTF-8', eol => 'preserve' });
     like $text, qr/ハッシュpath/, 'hash path spec works';
 };
@@ -197,7 +130,7 @@ subtest 'read_do throws on missing file' => sub {
 
 subtest 'read_do throws on syntax error file' => sub {
     my $f = "$TMP/syntax_err.do";
-    write_file($f, 'this is not valid perl $$$');
+    out_file('>', $f, 'this is not valid perl $$$');
     eval { read_do($f) };
     like $@, qr/Failed to read/, 'syntax error triggers exception';
 };
@@ -241,7 +174,7 @@ subtest 'run_in_fork executes code in child' => sub {
     my $f = "$TMP/fork_result.txt";
     unlink $f if -f $f;
     run_in_fork(sub {
-        write_file($f, '子プロセス実行');
+        out_file('>', $f, '子プロセス実行');
     });
     ok -f $f, 'file created by child';
     my $text = read_file($f);
@@ -353,7 +286,9 @@ subtest 'dying logs error to auto file and throws' => sub {
 
 subtest 'out_file first call overwrites existing file' => sub {
     my $f = "$TMP/out_first.txt";
-    write_file($f, 'initial');
+    open my $fh, '>:utf8', $f or die "Cannot create $f: $!";
+    print {$fh} 'initial';
+    close $fh;
     out_file($f, 'replaced');
     is read_file($f), 'replaced', 'first call overwrites';
 };

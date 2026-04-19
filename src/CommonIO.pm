@@ -15,7 +15,6 @@ use I18N::Langinfo qw(langinfo CODESET);
 use POSIX qw(_exit strftime);
 
 our @EXPORT_OK = qw(
-    append_file
     at
     dec
     dp
@@ -27,7 +26,6 @@ our @EXPORT_OK = qw(
     read_file
     run_in_fork
     write_do
-    write_file
 );
 
 my %_out_counts;
@@ -332,26 +330,6 @@ sub _encode_and_write {
     return;
 }
 
-sub write_file {
-    my ($path, $text) = @_;
-    my $spec = _parse_path($path, qw(path encoding eol));
-    my $rendered_text = _render_write_text($text, $spec->{eol});
-    my $encoding = _file_encoding_name($spec->{encoding});
-    my $bytes = encode($encoding, $rendered_text, FB_CROAK);
-    _write_bytes($spec->{path}, $bytes, '>');
-    return;
-}
-
-sub append_file {
-    my ($path, $text) = @_;
-    my $spec = _parse_path($path, qw(path encoding eol));
-    my $rendered_text = _render_write_text($text, $spec->{eol});
-    my $encoding = _file_encoding_name($spec->{encoding});
-    my $bytes = encode($encoding, $rendered_text, FB_CROAK);
-    _write_bytes($spec->{path}, $bytes, '>>');
-    return;
-}
-
 sub out_file {
     my ($first, @rest) = @_;
 
@@ -454,7 +432,7 @@ sub write_do {
     my $spec = _parse_path($path, qw(path));
     my $dump = dumpU8($var, indent => 1);
     my $text = "use utf8;\n\n" . $dump;
-    write_file($spec->{path}, $text);
+    _encode_and_write({ path => $spec->{path}, encoding => 'UTF-8', eol => 'lf' }, $text, '>');
     return;
 }
 
