@@ -339,6 +339,23 @@ subtest 'out_file child process does not clear parent counts' => sub {
     like $text, qr/parent-first\nchild\nparent-second/, 'parent appends after fork';
 };
 
+subtest 'dec warns guess_encoding for non-UTF8 bytes' => sub {
+    my $cp932_bytes = Encode::encode('CP932', 'テスト');
+    my $warned = '';
+    local $SIG{__WARN__} = sub { $warned .= $_[0] };
+    my $out = dec($cp932_bytes);
+    like $warned, qr/guess_encoding/i, 'warn includes guess_encoding';
+    is $out, $cp932_bytes, 'original bytes returned unchanged';
+};
+
+subtest 'dec warns guess_encoding: unknown for unrecognizable bytes' => sub {
+    my $bad = "\x80\x81\x82\x83\x84\x85";
+    my $warned = '';
+    local $SIG{__WARN__} = sub { $warned .= $_[0] };
+    dec($bad);
+    like $warned, qr/guess_encoding/i, 'warn includes guess_encoding';
+};
+
 subtest 'out_file with mode > always overwrites' => sub {
     my $f = "$TMP/out_mode_overwrite.txt";
     out_file('>', $f, "first\n");

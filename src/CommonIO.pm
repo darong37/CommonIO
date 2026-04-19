@@ -10,6 +10,7 @@ use Data::Printer escape_chars => 'none';
 use File::Basename qw(basename);
 use File::Spec;
 use Encode qw(encode decode find_encoding is_utf8 FB_CROAK);
+use Encode::Guess;
 use Exporter qw(import);
 use I18N::Langinfo qw(langinfo CODESET);
 use POSIX qw(_exit strftime);
@@ -390,7 +391,14 @@ sub dec {
     return $data unless defined $data;
     return $data if is_utf8($data);
     my $text = eval { decode('UTF-8', $data, FB_CROAK) };
-    return defined $text ? $text : $data;
+    return $text if defined $text;
+    my $guess = Encode::Guess->guess($data);
+    if (ref $guess) {
+        warn "guess_encoding: " . $guess->name . "\n";
+    } else {
+        warn "guess_encoding: unknown\n";
+    }
+    return $data;
 }
 
 sub dp {
