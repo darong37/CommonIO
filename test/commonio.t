@@ -436,6 +436,32 @@ subtest 'out_file rejects path that is a mode character' => sub {
     like $@, qr/mode character/i, 'path => ? is rejected';
 };
 
+subtest 'out_file with encoding=>raw writes bytes as-is' => sub {
+    my $f      = "$TMP/out_raw.bin";
+    my $bytes  = "\x80\x81\x82";
+    out_file('>', { path => $f, encoding => 'raw' }, $bytes);
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $got = <$fh>;
+    close $fh;
+    is $got, $bytes, 'raw bytes written without encoding';
+};
+
+subtest 'read_file with encoding=>raw returns bytes as-is' => sub {
+    my $f     = "$TMP/read_raw.bin";
+    my $bytes = "\x80\x81\x82";
+    out_file('>', { path => $f, encoding => 'raw' }, $bytes);
+    my $got   = read_file({ path => $f, encoding => 'raw' });
+    is $got, $bytes, 'raw bytes read without decoding';
+};
+
+subtest 'read_file with encoding=>raw in list context dies' => sub {
+    my $f = "$TMP/read_raw_list.bin";
+    out_file('>', { path => $f, encoding => 'raw' }, "data");
+    eval { my @lines = read_file({ path => $f, encoding => 'raw' }) };
+    like $@, qr/list context/i, 'list context with raw encoding dies';
+};
+
 subtest 'dp does not die with various inputs' => sub {
     open my $saved_err, '>&', \*STDERR or die "Cannot dup STDERR: $!";
     open STDERR, '>', '/dev/null' or die "Cannot open /dev/null: $!";

@@ -314,8 +314,17 @@ sub _write_bytes {
     return;
 }
 
+sub _is_raw_encoding {
+    my ($enc) = @_;
+    return defined $enc && lc($enc) eq 'raw';
+}
+
 sub _encode_and_write {
     my ($spec, $text, $mode) = @_;
+    if (_is_raw_encoding($spec->{encoding})) {
+        _write_bytes($spec->{path}, $text, $mode);
+        return;
+    }
     my $rendered = _render_write_text($text, $spec->{eol});
     my $enc      = _file_encoding_name($spec->{encoding});
     my $bytes    = encode($enc, $rendered, FB_CROAK);
@@ -381,13 +390,19 @@ sub out_file {
 sub read_file {
     my ($path) = @_;
     my $spec = _parse_path($path, qw(path encoding eol));
-    my $encoding = _file_encoding_name($spec->{encoding});
     open my $fh, '<:raw', $spec->{path} or CommonIO::dying("Cannot read $spec->{path}: $!");
     local $/;
     my $bytes = <$fh>;
     close $fh or CommonIO::dying("Cannot close $spec->{path}: $!");
     CommonIO::dying("Cannot read $spec->{path}: file not found or empty") unless defined $bytes;
-    my $text = decode($encoding, $bytes, FB_CROAK);
+
+    if (_is_raw_encoding($spec->{encoding})) {
+        CommonIO::dying("read_file with encoding=>raw does not support list context")
+            if wantarray;
+        return $bytes;
+    }
+
+    my $text = decode(_file_encoding_name($spec->{encoding}), $bytes, FB_CROAK);
     $text = _normalize_read_eol($text, $spec->{eol});
     return wantarray ? _split_lines($text) : $text;
 }
