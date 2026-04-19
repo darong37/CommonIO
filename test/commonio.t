@@ -8,7 +8,7 @@ use Encode ();
 use File::Basename qw(basename);
 
 use CommonIO qw(
-    append_file at dying dumpU8 log out_file read_do read_file
+    append_file at dp dying dumpU8 log out_file read_do read_file
     run_in_fork setup_console write_do write_file
 );
 
@@ -416,6 +416,22 @@ subtest 'out_file child process does not clear parent counts' => sub {
     out_file($f, "parent-second\n");
     my $text = read_file($f);
     like $text, qr/parent-first\nchild\nparent-second/, 'parent appends after fork';
+};
+
+subtest 'dp does not die with various inputs' => sub {
+    open my $saved_err, '>&', \*STDERR or die "Cannot dup STDERR: $!";
+    open STDERR, '>', '/dev/null' or die "Cannot open /dev/null: $!";
+
+    ok eval { dp(); 1 },                  'dp() - no args';
+    ok eval { dp('hello'); 1 },           'dp(scalar string)';
+    ok eval { dp(42); 1 },                'dp(scalar number)';
+    ok eval { dp([1, 2, 3]); 1 },         'dp(arrayref)';
+    ok eval { dp({ a => 1 }); 1 },        'dp(hashref)';
+    ok eval { dp(1, 2, 3); 1 },           'dp(multiple args - list)';
+    ok eval { dp('日本語'); 1 },          'dp(kanji scalar)';
+    ok eval { dp(['日本語', '漢字']); 1 }, 'dp(arrayref with kanji)';
+
+    open STDERR, '>&', $saved_err or die "Cannot restore STDERR: $!";
 };
 
 cleanup();

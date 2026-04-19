@@ -6,6 +6,7 @@ use utf8;
 
 use Carp qw(confess);
 use Data::Dumper;
+use Data::Printer escape_chars => 'none';
 use File::Basename qw(basename);
 use File::Spec;
 use Encode qw(encode decode find_encoding FB_CROAK);
@@ -16,6 +17,7 @@ use POSIX qw(_exit strftime);
 our @EXPORT_OK = qw(
     append_file
     at
+    dp
     dying
     dumpU8
     log
@@ -358,6 +360,21 @@ sub read_file {
     my $text = decode($encoding, $bytes, FB_CROAK);
     $text = _normalize_read_eol($text, $spec->{eol});
     return wantarray ? _split_lines($text) : $text;
+}
+
+sub dp {
+    my @args = @_;
+    return unless @args;
+    # np() captures the raw UTF-8 bytes without printing; write to a raw
+    # duplicate of STDERR to avoid double-encoding with any encoding layer.
+    my $out = @args == 1
+        ? &np(ref $args[0] ? $args[0] : \$args[0])
+        : &np(\@args);
+    open my $raw_err, '>>&', \*STDERR or return;
+    binmode $raw_err, ':raw';
+    print {$raw_err} $out;
+    close $raw_err;
+    return;
 }
 
 sub dumpU8 {
