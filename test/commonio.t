@@ -8,7 +8,7 @@ use Encode ();
 use File::Basename qw(basename);
 
 use CommonIO qw(
-    at dec dp dying dumpU8 log out_file read_do read_file
+    at dec dp dying dumpU8 log out_file pathcli read_do read_file
     run_in_fork write_do
 );
 
@@ -56,13 +56,13 @@ subtest 'read_file normalizes CRLF to LF with eol=>lf' => sub {
     like $text, qr/line1\nline2/, 'LF present';
 };
 
-subtest 'read_file preserves CRLF with eol=>preserve' => sub {
-    my $f = "$TMP/read_preserve.txt";
+subtest 'read_file normalizes to CRLF with eol=>crlf' => sub {
+    my $f = "$TMP/read_crlf_mode.txt";
     open my $fh, '>:raw', $f or die;
-    print {$fh} "line1\r\nline2\r\n";
+    print {$fh} "line1\nline2\r\nline3\r";
     close $fh;
-    my $text = read_file({ path => $f, eol => 'preserve' });
-    like $text, qr/\r\n/, 'CRLF preserved';
+    my $text = read_file({ path => $f, eol => 'crlf' });
+    is $text, "line1\r\nline2\r\nline3\r\n", 'all line endings normalized to CRLF';
 };
 
 subtest 'read_file throws on missing file' => sub {
@@ -72,15 +72,15 @@ subtest 'read_file throws on missing file' => sub {
 
 subtest 'read_file reads CP932 file' => sub {
     my $f = "$TMP/read_cp932.txt";
-    out_file('>', { path => $f, encoding => 'CP932' }, "テスト");
-    my $text = read_file({ path => $f, encoding => 'CP932' });
+    out_file('>', { path => $f, encoding => 'cp932' }, "テスト");
+    my $text = read_file({ path => $f, encoding => 'cp932' });
     is $text, 'テスト', 'CP932 round-trip ok';
 };
 
 subtest 'read_file with hash path spec' => sub {
     my $f = "$TMP/read_hash.txt";
-    out_file('>', { path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュpath");
-    my $text = read_file({ path => $f, encoding => 'UTF-8', eol => 'preserve' });
+    out_file('>', { path => $f, encoding => 'utf8', eol => 'lf' }, "ハッシュpath");
+    my $text = read_file({ path => $f, encoding => 'utf8', eol => 'lf' });
     like $text, qr/ハッシュpath/, 'hash path spec works';
 };
 
@@ -111,16 +111,18 @@ subtest 'write_do / read_do preserves Unicode' => sub {
     is $got->{msg}, '日本語テスト', 'Unicode preserved';
 };
 
-subtest 'write_do rejects encoding option' => sub {
+subtest 'write_do ignores encoding option' => sub {
     my $f = "$TMP/do_enc.do";
-    eval { write_do({ path => $f, encoding => 'CP932' }, { x => 1 }) };
-    like $@, qr/Unsupported path option: encoding/, 'write_do rejects encoding';
+    write_do({ path => $f, encoding => 'cp932' }, { x => 1 });
+    my $got = read_do($f);
+    is $got->{x}, 1, 'write_do ignores encoding option';
 };
 
-subtest 'write_do rejects eol option' => sub {
+subtest 'write_do ignores eol option' => sub {
     my $f = "$TMP/do_eol.do";
-    eval { write_do({ path => $f, eol => 'crlf' }, { x => 1 }) };
-    like $@, qr/Unsupported path option: eol/, 'write_do rejects eol';
+    write_do({ path => $f, eol => 'crlf' }, { x => 1 });
+    my $got = read_do($f);
+    is $got->{x}, 1, 'write_do ignores eol option';
 };
 
 subtest 'read_do throws on missing file' => sub {
@@ -135,18 +137,18 @@ subtest 'read_do throws on syntax error file' => sub {
     like $@, qr/Failed to read/, 'syntax error triggers exception';
 };
 
-subtest 'read_do rejects encoding option' => sub {
+subtest 'read_do ignores encoding option' => sub {
     my $f = "$TMP/read_do_enc.do";
     write_do($f, { ok => 1 });
-    eval { read_do({ path => $f, encoding => 'CP932' }) };
-    like $@, qr/Unsupported path option: encoding/, 'read_do rejects encoding';
+    my $got = read_do({ path => $f, encoding => 'cp932' });
+    is $got->{ok}, 1, 'read_do ignores encoding option';
 };
 
-subtest 'read_do rejects eol option' => sub {
+subtest 'read_do ignores eol option' => sub {
     my $f = "$TMP/read_do_eol.do";
     write_do($f, { ok => 1 });
-    eval { read_do({ path => $f, eol => 'lf' }) };
-    like $@, qr/Unsupported path option: eol/, 'read_do rejects eol';
+    my $got = read_do({ path => $f, eol => 'lf' });
+    is $got->{ok}, 1, 'read_do ignores eol option';
 };
 
 subtest 'dumpU8 preserves Unicode characters' => sub {
@@ -160,12 +162,12 @@ subtest 'dumpU8 with indent=>0 produces one line' => sub {
     unlike $dump, qr/\n/, 'no newline with indent 0';
 };
 
-subtest '_setup_console auto-runs: STDOUT has encoding layer' => sub {
+subtest 'BEGIN auto-runs: STDOUT has encoding layer' => sub {
     my @layers = PerlIO::get_layers(STDOUT);
     ok grep( { /^encoding/ } @layers ), 'STDOUT has encoding layer';
 };
 
-subtest '_setup_console auto-runs: STDERR has encoding layer' => sub {
+subtest 'BEGIN auto-runs: STDERR has encoding layer' => sub {
     my @layers = PerlIO::get_layers(STDERR);
     ok grep( { /^encoding/ } @layers ), 'STDERR has encoding layer';
 };
@@ -188,6 +190,42 @@ subtest 'run_in_fork throws when child throws' => sub {
         });
     };
     like $@, qr/confirm failed/, 'parent throws on child failure';
+};
+
+subtest 'pathcli with string path returns path_spec' => sub {
+    my $spec = pathcli('>', '/tmp/foo.txt');
+    is $spec->{path},     '/tmp/foo.txt',       'path ok';
+    is $spec->{encoding}, 'utf8',               'default encoding utf8';
+    is $spec->{eol},      'lf',                 'default eol lf';
+    like $spec->{layer},  qr/>:encoding\(utf8\)/, 'layer contains mode and encoding';
+};
+
+subtest 'pathcli with hash path returns path_spec' => sub {
+    my $spec = pathcli('<', { path => '/tmp/bar.txt', encoding => 'cp932', eol => 'crlf' });
+    is $spec->{path},     '/tmp/bar.txt', 'path ok';
+    is $spec->{encoding}, 'cp932',        'encoding cp932';
+    is $spec->{eol},      'crlf',         'eol crlf';
+    like $spec->{layer},  qr/<:encoding\(cp932\)/, 'layer ok';
+};
+
+subtest 'pathcli resolves ? to > on first call' => sub {
+    my $f = "$TMP/pathcli_q.txt";
+    my $spec = pathcli('?', $f);
+    like $spec->{layer}, qr/>:/, 'first ? resolves to >';
+};
+
+subtest 'pathcli resolves ? to >> on second call' => sub {
+    my $f = "$TMP/pathcli_q2.txt";
+    out_file('>', $f, 'seed');
+    my $spec = pathcli('?', $f);
+    like $spec->{layer}, qr/>>:/, 'second ? resolves to >>';
+};
+
+subtest 'pathcli rejects mode character in path' => sub {
+    for my $bad ('>', '>>', '?') {
+        eval { pathcli('>', $bad) };
+        like $@, qr/mode character/i, "path '$bad' is rejected";
+    }
 };
 
 subtest 'at returns callers arrayref' => sub {
@@ -322,10 +360,20 @@ subtest 'out_file different paths are independent' => sub {
 
 subtest 'out_file accepts hash path with encoding and eol' => sub {
     my $f = "$TMP/out_hash.txt";
-    out_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "ハッシュ\n");
-    out_file({ path => $f, encoding => 'UTF-8', eol => 'lf' }, "追記\n");
+    out_file({ path => $f, encoding => 'utf8', eol => 'lf' }, "ハッシュ\n");
+    out_file({ path => $f, encoding => 'utf8', eol => 'lf' }, "追記\n");
     my $text = read_file($f);
     like $text, qr/ハッシュ\n追記/, 'hash path spec works with out_file';
+};
+
+subtest 'out_file scalar text is not changed by eol' => sub {
+    my $f = "$TMP/out_scalar_eol.txt";
+    out_file('>', { path => $f, encoding => 'utf8', eol => 'crlf' }, "a\nb\n");
+    open my $fh, '<:raw', $f or die;
+    local $/;
+    my $raw = <$fh>;
+    close $fh;
+    is $raw, "a\nb\n", 'scalar text is written as-is';
 };
 
 subtest 'out_file child process does not clear parent counts' => sub {
@@ -378,7 +426,7 @@ subtest 'out_file with mode ? is overwrite then append' => sub {
 };
 
 subtest 'out_file rejects path that is a mode character' => sub {
-    eval { out_file({ path => '>', encoding => 'UTF-8' }, 'text') };
+    eval { out_file({ path => '>', encoding => 'utf8' }, 'text') };
     like $@, qr/mode character/i, 'path => > is rejected';
 
     eval { out_file({ path => '>>' }, 'text') };
@@ -414,20 +462,41 @@ subtest 'read_file with encoding=>raw in list context dies' => sub {
     like $@, qr/list context/i, 'list context with raw encoding dies';
 };
 
-subtest 'dp does not die with various inputs' => sub {
-    open my $saved_err, '>&', \*STDERR or die "Cannot dup STDERR: $!";
-    open STDERR, '>', '/dev/null' or die "Cannot open /dev/null: $!";
+sub _capture_dp {
+    my $code = shift;
+    my $f = "$TMP/dp_cap.txt";
+    open my $saved_err, '>&', \*STDERR or die "dup STDERR: $!";
+    open STDERR, '>:utf8', $f or die "redirect STDERR: $!";
+    $code->();
+    open STDERR, '>&', $saved_err or die "restore STDERR: $!";
+    return '' unless -s $f;
+    open my $fh, '<:utf8', $f or die "read dp_cap: $!";
+    local $/;
+    return <$fh>;
+}
 
-    ok eval { dp(); 1 },                  'dp() - no args';
-    ok eval { dp('hello'); 1 },           'dp(scalar string)';
-    ok eval { dp(42); 1 },                'dp(scalar number)';
-    ok eval { dp([1, 2, 3]); 1 },         'dp(arrayref)';
-    ok eval { dp({ a => 1 }); 1 },        'dp(hashref)';
-    ok eval { dp(1, 2, 3); 1 },           'dp(multiple args - list)';
-    ok eval { dp('日本語'); 1 },          'dp(kanji scalar)';
-    ok eval { dp(['日本語', '漢字']); 1 }, 'dp(arrayref with kanji)';
+subtest 'dp with no args outputs nothing' => sub {
+    my $out = _capture_dp(sub { dp() });
+    is $out, '', 'no output for dp()';
+};
 
-    open STDERR, '>&', $saved_err or die "Cannot restore STDERR: $!";
+subtest 'dp with single ref passes ref directly' => sub {
+    my $out = _capture_dp(sub { dp({ a => 1 }) });
+    like $out, qr/\{/, 'hashref passed directly: hash notation in output';
+};
+
+subtest 'dp with scalar wraps in arrayref' => sub {
+    my $out = _capture_dp(sub { dp('hello') });
+    like $out, qr/\[/, 'scalar wrapped in arrayref: array notation in output';
+};
+
+subtest 'dp with multiple args wraps in arrayref' => sub {
+    my $out = _capture_dp(sub { dp(1, 2, 3) });
+    like $out, qr/\[/, 'multiple args wrapped in arrayref: array notation in output';
+};
+
+subtest 'dp with kanji does not die' => sub {
+    ok eval { _capture_dp(sub { dp(['日本語', '漢字']) }); 1 }, 'kanji arrayref does not die';
 };
 
 subtest 'dec converts UTF-8 bytes to Perl string' => sub {

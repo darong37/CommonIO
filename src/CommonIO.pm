@@ -9,7 +9,7 @@ use Data::Dumper;
 use Data::Printer escape_chars => 'none';
 use File::Basename qw(basename);
 use File::Spec;
-use Encode qw(encode decode find_encoding is_utf8 FB_CROAK);
+use Encode qw(encode decode is_utf8 FB_CROAK);
 use Encode::Guess;
 use Exporter qw(import);
 use I18N::Langinfo qw(langinfo CODESET);
@@ -23,70 +23,12 @@ our @EXPORT_OK = qw(
     dumpU8
     log
     out_file
+    pathcli
     read_do
     read_file
     run_in_fork
     write_do
 );
-
-my %_out_counts;
-my $_out_pid = $$;
-
-END {
-    if ($$ == $_out_pid) {
-        # Future: report written files and write counts here.
-        %_out_counts = ();
-    }
-}
-
-my $LOG_TARGET;
-
-# Capture the caller script name here because caller() is valid at load time.
-{
-    die "LOGDIR environment variable is not set or empty\n"
-        unless defined $ENV{LOGDIR} && length $ENV{LOGDIR};
-
-    die "LOGDIR directory does not exist: $ENV{LOGDIR}\n"
-        unless -d $ENV{LOGDIR};
-
-    my $cals = CommonIO::at();
-    my $top  = $cals->[0];
-    my $base = defined $top ? $top->{file} : 'unknown';
-    $base =~ s/\.[^.]+$//;
-
-    my $ts = strftime('%m%d%H%M', localtime);
-    my $lp = "$ENV{LOGDIR}/$base$ts.log";
-
-    # Verify the log file is writable before the first log() call.
-    open my $fh, '>>', $lp or die "Cannot open log file $lp: $!\n";
-    close $fh;
-
-    $LOG_TARGET = { path => $lp, encoding => 'UTF-8', eol => 'lf' };
-}
-
-sub dying {
-    my ($msg) = @_;
-    CommonIO::log('error', $msg);
-    confess $msg;
-}
-
-sub run_in_fork {
-    my ($code) = @_;
-    my $pid = fork();
-    CommonIO::dying("fork failed: $!") unless defined $pid;
-    if ($pid == 0) {
-        eval { $code->() };
-        my $err = $@;
-        if ($err) {
-            CommonIO::log('error', $err);
-            _exit(1);
-        }
-        _exit(0);
-    }
-    waitpid($pid, 0);
-    CommonIO::dying('confirm failed') if $? != 0;
-    return;
-}
 
 sub at {
     my @raw;
@@ -120,277 +62,182 @@ sub at {
     return [@frames[$top .. $#frames]];
 }
 
-sub _normalize_log_level {
-    my ($level) = @_;
-    $level = 'info' unless defined $level && length $level;
-    my $key = lc $level;
-    return 'DEBUG' if $key eq 'debug';
-    return 'INFO'  if $key eq 'info';
-    return 'WARN'  if $key eq 'warn' || $key eq 'warning';
-    return 'ERROR' if $key eq 'error';
-    CommonIO::dying("Unsupported log level: $level");
-}
+my %OUT_COUNTS;
+my $OUT_PID = $$;
 
-sub setLogFile {
-    my ($path) = @_;
-    if (!defined $path) {
-        $LOG_TARGET = undef;
-        return;
+END {
+    if ($$ == $OUT_PID) {
+        # Future: report written files and write counts here.
+        %OUT_COUNTS = ();
     }
-
-    my $spec = _parse_path($path, qw(path eol));
-    $spec->{eol}      = 'lf'    unless defined $spec->{eol}      && length $spec->{eol};
-    $spec->{encoding} = 'UTF-8';
-    $LOG_TARGET = $spec;
-    return $LOG_TARGET->{path};
 }
 
-sub _log_file_bytes {
-    my ($bytes) = @_;
-    return unless $LOG_TARGET;
-    open my $fh, '>>:raw', $LOG_TARGET->{path} or do {
-        CORE::print STDERR "Cannot write $LOG_TARGET->{path}: $!\n";
-        return;
-    };
-    CORE::print {$fh} $bytes or CORE::print STDERR "Cannot write $LOG_TARGET->{path}: $!\n";
-    close $fh or CORE::print STDERR "Cannot close $LOG_TARGET->{path}: $!\n";
+my $LOGDIR;
+my $LOGFILE;
+
+# Capture the caller script name here because caller() is valid at load time.
+BEGIN {
+    my $console_encoding = langinfo(CODESET) || 'UTF-8';
+    binmode STDOUT, ":encoding($console_encoding)"
+        or die "Cannot set STDOUT encoding to $console_encoding: $!\n";
+    binmode STDERR, ":encoding($console_encoding)"
+        or die "Cannot set STDERR encoding to $console_encoding: $!\n";
+
+    $LOGDIR = $ENV{LOGDIR} || die "LOGDIR environment variable is not set or empty\n";
+    die "LOGDIR directory does not exist: $LOGDIR\n" unless -d $LOGDIR;
+
+    my $cals = at();
+    my $top  = $cals->[0];
+    my $base = defined $top ? $top->{file} : 'unknown';
+    $base =~ s/\.[^.]+$//;
+
+    my $ts = strftime('%m%d%H%M', localtime);
+    $LOGFILE = "$LOGDIR/$base$ts.log";
+}
+
+sub dying {
+    my ($msg) = @_;
+    &log('error', $msg);
+    confess $msg;
+}
+
+sub run_in_fork {
+    my ($code) = @_;
+    my $pid = fork();
+    dying("fork failed: $!") if !defined $pid;
+    if ($pid == 0) {
+        eval { $code->() };
+        my $err = $@;
+        if ($err) {
+            &log('error', $err);
+            _exit(1);
+        }
+        _exit(0);
+    }
+    waitpid($pid, 0);
+    dying('confirm failed') if $? != 0;
     return;
 }
 
 sub log {
     my ($level, $msg) = @_;
-    my $name = _normalize_log_level($level);
+    $level = 'info' unless defined $level && length $level;
+    my $key = lc $level;
+    my $name = $key eq 'debug' ? 'DEBUG'
+        : $key eq 'info' ? 'INFO'
+        : $key eq 'warn' || $key eq 'warning' ? 'WARN'
+        : $key eq 'error' ? 'ERROR'
+        : dying("Unsupported log level: $level");
     $msg = '' unless defined $msg;
     my $line = "[$name] $msg";
     $line .= "\n" unless $line =~ /\n\z/;
 
     print STDERR $line;
 
-    if ($LOG_TARGET) {
-        my $text = _normalize_write_eol($line, $LOG_TARGET->{eol});
-        my $encoding = _encoding_name($LOG_TARGET->{encoding});
-        my $bytes = encode($encoding, $text, FB_CROAK);
-        _log_file_bytes($bytes);
-    }
+    out_file($LOGFILE, $line) if $LOGFILE;
 
     return $line;
 }
 
-sub _encoding_name {
-    my ($encoding) = @_;
-    $encoding = 'UTF-8' unless defined $encoding && length $encoding;
-    my $encoder = find_encoding($encoding)
-        or CommonIO::dying("Unknown encoding: $encoding");
-    return $encoder->name;
-}
+sub pathcli {
+    my ($mode, $path) = @_;
 
-sub _file_encoding_name {
-    my ($encoding) = @_;
-    $encoding = 'UTF-8' unless defined $encoding && length $encoding;
-    my $key = uc $encoding;
-    $key =~ s/[^A-Z0-9]//g;
-    return 'UTF-8' if $key eq 'UTF8';
-    return 'CP932' if $key eq 'CP932';
-    CommonIO::dying("Unsupported file encoding: $encoding (use UTF-8 or CP932)");
-}
+    my $path_text = ref($path) eq 'HASH' ? ($path->{path} // '') : $path;
 
-sub _console_encoding_name {
-    my ($encoding) = @_;
+    dying("path must not be a mode character: $path_text")
+        if $path_text eq '>' || $path_text eq '>>' || $path_text eq '?';
 
-    if (!defined $encoding || !length $encoding) {
-        my $codeset = langinfo(CODESET);
-        $encoding = $codeset if defined $codeset && length $codeset;
-        $encoding ||= 'UTF-8';
+    if ($mode eq '?') {
+        $mode = $OUT_COUNTS{$path_text} ? '>>' : '>';
     }
 
-    my $key = uc $encoding;
-    $key =~ s/[^A-Z0-9]//g;
-
-    return 'UTF-8' if $key eq 'UTF8';
-    return 'CP932' if $key eq 'CP932';
-    return 'CP932' if $key eq 'SJIS';
-    return 'CP932' if $key eq 'SHIFTJIS';
-
-    CommonIO::dying("Unsupported console encoding: $encoding");
-}
-
-sub _assert_allowed_path_keys {
-    my ($path, @allowed_keys) = @_;
-    return unless ref($path) eq 'HASH';
-
-    my %allowed = map { $_ => 1 } @allowed_keys;
-    for my $key (keys %{$path}) {
-        CommonIO::dying("Unsupported path option: $key")
-            unless $allowed{$key};
-    }
-    return;
-}
-
-sub _parse_path {
-    my ($path, @allowed_keys) = @_;
-    @allowed_keys = qw(path encoding eol) unless @allowed_keys;
+    dying("Unsupported mode: $mode") if $mode ne '<' && $mode ne '>' && $mode ne '>>';
 
     return {
-        eol      => undef,
-        encoding => undef,
+        eol      => 'lf',
+        encoding => 'utf8',
+        layer    => $mode . ':encoding(utf8)',
         path     => $path,
     } unless ref $path;
 
-    CommonIO::dying("path must be path string or hashref")
-        unless ref($path) eq 'HASH';
-    _assert_allowed_path_keys($path, @allowed_keys);
+    dying("path must be path string or hashref") if ref($path) ne 'HASH';
 
-    CommonIO::dying("path->{path} is required")
-        unless defined $path->{path} && length $path->{path};
+    dying("path->{path} is required") if !defined $path->{path} || !length $path->{path};
+
+    my $encoding = defined $path->{encoding} && length $path->{encoding}
+        ? lc $path->{encoding}
+        : 'utf8';
+
+    dying("Unsupported file encoding: $encoding (use utf8, cp932, or raw)")
+        if $encoding !~ /\A(?:utf8|cp932|raw)\z/;
 
     return {
-        eol      => $path->{eol},
-        encoding => $path->{encoding},
+        eol      => defined $path->{eol} && length $path->{eol} ? lc $path->{eol} : 'lf',
+        encoding => $encoding,
+        layer    => $mode . ($encoding eq 'raw' ? ':raw' : ':encoding(' . $encoding . ')'),
         path     => $path->{path},
     };
 }
 
-sub _normalize_write_eol {
-    my ($text, $eol) = @_;
-    $eol = 'lf' unless defined $eol && length $eol;
-    return $text if $eol eq 'preserve';
-
-    my $nl;
-    if ($eol eq 'lf') {
-        $nl = "\n";
-    } elsif ($eol eq 'crlf') {
-        $nl = "\r\n";
-    } else {
-        CommonIO::dying("Unknown write eol mode: $eol");
-    }
-
-    $text =~ s/\r\n|\r|\n/$nl/g;
-    return $text;
-}
-
-sub _normalize_read_eol {
-    my ($text, $eol) = @_;
-    $eol = 'preserve' unless defined $eol && length $eol;
-    return $text if $eol eq 'preserve';
-    CommonIO::dying("Unknown read eol mode: $eol") unless $eol eq 'lf';
-    $text =~ s/\r\n|\r/\n/g;
-    return $text;
-}
-
-sub _line_ending {
-    my ($eol) = @_;
-    $eol = 'lf' unless defined $eol && length $eol;
-    return undef if $eol eq 'preserve';
-    return "\n"   if $eol eq 'lf';
-    return "\r\n" if $eol eq 'crlf';
-    CommonIO::dying("Unknown write eol mode: $eol");
-}
-
-sub _render_write_text {
-    my ($text, $eol) = @_;
-
-    return _normalize_write_eol($text, $eol) unless ref $text;
-
-    CommonIO::dying("Unsupported text type: " . ref($text))
-        unless ref($text) eq 'ARRAY';
-
-    my $nl = _line_ending($eol);
-    return defined $nl ? join($nl, @$text) : join('', @$text);
-}
-
-sub _split_lines {
-    my ($text) = @_;
-    return () unless length $text;
-    return split /\n/, $text, -1;
-}
-
-sub _write_bytes {
-    my ($path, $bytes, $mode) = @_;
-    $mode ||= '>';
-    open my $fh, $mode . ':raw', $path or CommonIO::dying("Cannot write $path: $!");
-    print {$fh} $bytes or CommonIO::dying("Cannot write $path: $!");
-    close $fh or CommonIO::dying("Cannot close $path: $!");
-    return;
-}
-
-sub _is_raw_encoding {
-    my ($enc) = @_;
-    return defined $enc && lc($enc) eq 'raw';
-}
-
-sub _encode_and_write {
-    my ($spec, $text, $mode) = @_;
-    if (_is_raw_encoding($spec->{encoding})) {
-        _write_bytes($spec->{path}, $text, $mode);
-        return;
-    }
-    my $rendered = _render_write_text($text, $spec->{eol});
-    my $enc      = _file_encoding_name($spec->{encoding});
-    my $bytes    = encode($enc, $rendered, FB_CROAK);
-    _write_bytes($spec->{path}, $bytes, $mode);
-    return;
-}
-
 sub out_file {
-    my ($first, @rest) = @_;
+    my @args = @_;
 
-    my ($mode, $path_arg, $text);
-    if (defined $first && ($first eq '>' || $first eq '>>' || $first eq '?')) {
-        $mode     = $first;
-        $path_arg = $rest[0];
-        $text     = $rest[1];
-    } else {
-        $mode     = '?';
-        $path_arg = $first;
-        $text     = $rest[0];
+    my $mode = (@args && ($args[0] eq '>' || $args[0] eq '>>' || $args[0] eq '?'))
+        ? shift @args
+        : '?';
+    my ($path, $content) = @args;
+    my $spec = pathcli($mode, $path);
+    my $text = $content;
+
+    if (ref $content) {
+        dying("Unsupported content type: " . ref($content)) if ref($content) ne 'ARRAY';
+        my $nl = $spec->{eol} eq 'lf' ? "\n"
+            : $spec->{eol} eq 'crlf' ? "\r\n"
+            : dying("Unknown write eol mode: $spec->{eol}");
+        $text = join($nl, @$content);
     }
 
-    my $spec = _parse_path($path_arg, qw(path encoding eol));
-    my $key  = $spec->{path};
-
-    CommonIO::dying("path must not be a mode character: $key")
-        if $key eq '>' || $key eq '>>' || $key eq '?';
-
-    my $actual_mode;
-    if ($mode eq '>') {
-        $actual_mode = '>';
-    } elsif ($mode eq '>>') {
-        $actual_mode = '>>';
-    } else {
-        $actual_mode = (exists $_out_counts{$key} && $_out_counts{$key} > 0)
-            ? '>>' : '>';
-    }
-
-    _encode_and_write($spec, $text, $actual_mode);
-    $_out_counts{$key}++;
+    open my $fh, $spec->{layer}, $spec->{path}
+        or dying("Cannot write $spec->{path}: $!");
+    print {$fh} $text or dying("Cannot write $spec->{path}: $!");
+    close $fh or dying("Cannot close $spec->{path}: $!");
+    $OUT_COUNTS{$spec->{path}}++;
     return;
 }
 
 sub read_file {
     my ($path) = @_;
-    my $spec = _parse_path($path, qw(path encoding eol));
-    open my $fh, '<:raw', $spec->{path} or CommonIO::dying("Cannot read $spec->{path}: $!");
+    my $spec = pathcli('<', $path);
+    open my $fh, $spec->{layer}, $spec->{path}
+        or dying("Cannot read $spec->{path}: $!");
     local $/;
-    my $bytes = <$fh>;
-    close $fh or CommonIO::dying("Cannot close $spec->{path}: $!");
-    CommonIO::dying("Cannot read $spec->{path}: file not found or empty") unless defined $bytes;
+    my $text = <$fh>;
+    close $fh or dying("Cannot close $spec->{path}: $!");
+    dying("Cannot read $spec->{path}: file not found or empty") if !defined $text;
 
-    if (_is_raw_encoding($spec->{encoding})) {
-        CommonIO::dying("read_file with encoding=>raw does not support list context")
-            if wantarray;
-        return $bytes;
+    if ($spec->{encoding} eq 'raw') {
+        dying("read_file with encoding=>raw does not support list context") if wantarray;
+        return $text;
     }
 
-    my $text = decode(_file_encoding_name($spec->{encoding}), $bytes, FB_CROAK);
-    $text = _normalize_read_eol($text, $spec->{eol});
-    return wantarray ? _split_lines($text) : $text;
+    if ($spec->{eol} eq 'lf') {
+        $text =~ s/\r\n|\r/\n/g;
+    } elsif ($spec->{eol} eq 'crlf') {
+        $text =~ s/\r\n|\r|\n/\r\n/g;
+    } else {
+        dying("Unknown read eol mode: $spec->{eol}");
+    }
+
+    return $text unless wantarray;
+    return () unless length $text;
+    return split(/\r?\n/, $text, -1);
 }
 
 sub dec {
     my ($data) = @_;
     return $data unless defined $data;
     return $data if is_utf8($data);
-    my $text = eval { decode('UTF-8', $data, FB_CROAK) };
+    my $text = eval { decode('utf8', $data, FB_CROAK) };
     return $text if defined $text;
     my $guess = Encode::Guess->guess($data);
     if (ref $guess) {
@@ -421,34 +268,23 @@ sub dumpU8 {
     return $dump;
 }
 
-sub _setup_console {
-    my $console_encoding = _console_encoding_name();
-    binmode STDOUT, ":encoding($console_encoding)"
-        or die "Cannot set STDOUT encoding to $console_encoding: $!\n";
-    binmode STDERR, ":encoding($console_encoding)"
-        or die "Cannot set STDERR encoding to $console_encoding: $!\n";
-    return $console_encoding;
-}
-
 sub write_do {
     my ($path, $var) = @_;
-    my $spec = _parse_path($path, qw(path));
+    my $do_path = ref($path) eq 'HASH' ? $path->{path} : $path;
     my $dump = dumpU8($var, indent => 1);
     my $text = "use utf8;\n\n" . $dump;
-    _encode_and_write({ path => $spec->{path}, encoding => 'UTF-8', eol => 'lf' }, $text, '>');
+    out_file('>', $do_path, $text);
     return;
 }
 
 sub read_do {
     my ($path) = @_;
-    my $spec = _parse_path($path, qw(path));
-    my $file_path = $spec->{path};
-    my $var = do $file_path;
-    CommonIO::dying("Failed to read $file_path: $@") if $@;
-    CommonIO::dying("Failed to read $file_path: file not found or empty") unless defined $var;
+    my $spec = pathcli('<', $path);
+    my $do_path = $spec->{path};
+    my $var = do $do_path;
+    dying("Failed to read $do_path: $@") if $@;
+    dying("Failed to read $do_path: file not found or empty") if !defined $var;
     return $var;
 }
-
-BEGIN { _setup_console() }
 
 1;
